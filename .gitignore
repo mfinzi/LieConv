@@ -2,3 +2,5 @@
 *.pdf
 *.state
 *.tfevents*
+*.df
+*.s
