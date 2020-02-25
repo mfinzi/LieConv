@@ -1,12 +1,12 @@
-# lie-conv
+# LieConv
 
 # Installation
-To install as a package, run `pip install git+https://github.com/mfinzi/lie-conv#egg=lie-conv`. Dependencies will be checked and installed from the setup.py file.
+To install as a package, run `pip install git+https://github.com/mfinzi/lie-conv#egg=LieConv`. Dependencies will be checked and installed from the setup.py file.
 
 To install the repo locally, run 
 ```
-git clone https://github.com/mfinzi/lie-conv.git
-cd lie-conv
+git clone https://github.com/mfinzi/LieConv.git
+cd LieConv
 pip install -e .
 ```
 
