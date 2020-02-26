@@ -91,7 +91,7 @@ python examples/train_img.py --num_epochs=500 --trainer_config "{'log_suffix':'m
 
 #SE2
 python examples/train_img.py --num_epochs=500 --trainer_config "{'log_suffix':'mnistSE2'}" \
-  --net_config "{'k':128,'total_ds':.1,'fill':1/15,'nbhd':25,'group':SE:2(.2)}" \
+  --net_config "{'k':128,'total_ds':.1,'fill':1/15,'nbhd':25,'group':SE2(.2)}" \
   --bs 25 --lr 3e-3 --split "{'train':12000}" --aug=True 
 ```
 
