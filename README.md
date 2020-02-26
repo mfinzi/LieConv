@@ -104,23 +104,23 @@ We apply our method in the modeling of a multi particle spring system, an exampl
 
 ```bash
 python examples/train_springs.py --num_epochs 100 --n_train 3000 \
-  --network HLieResNet --net_cfg "{'group':T(2),'k':384,'num_layers':6}" --lr 1e-3
+  --network HLieResNet --net_cfg "{'group':T(2),'k':384,'num_layers':4}" --lr 1e-3
 ```
 where `Trivial(2)`, `T(2)`, `SO2()` can be substituted in for T(2) to specify the group equivariance. The first time this command is run will take a while as the dataset is generated and then saved to disk.
 
 The FC, HFC, OGN, and HOGN baselines can be run as follows:
 ```bash
 python examples/train_springs.py --num_epochs 100 --n_train 3000 \
-  --network FC --net_cfg "{'k':256,'num_layers':4}" --lr 3e-3
+  --network FC --net_cfg "{'k':256,'num_layers':4}" --lr 1e-2
 
 python examples/train_springs.py --num_epochs 100 --n_train 3000 \
   --network HFC --net_cfg "{'k':256,'num_layers':4}" --lr 1e-2
 
 python examples/train_springs.py --num_epochs 100 --n_train 3000 \
-  --network OGN --net_cfg "{'k':256}" --lr 1e-3
+  --network OGN --net_cfg "{'k':256}" --lr 1e-2
 
 python examples/train_springs.py --num_epochs 100 --n_train 3000 \
-  --network HOGN --net_cfg "{'k':256}" --lr 1e-3
+  --network HOGN --net_cfg "{'k':256}" --lr 1e-2
 ```
 Note that OGN and HOGN require the graphnet functionality to be installed with `pip install -e .[GN]`.
 
