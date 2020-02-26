@@ -22,7 +22,7 @@ LieConv is an equivariant convolutional layer that can be applied on generic coo
 To install as a package, run `pip install git+https://github.com/mfinzi/LieConv#egg=LieConv`. Dependencies will be checked and installed from the setup.py file.
 
 To run the scripts you will need to clone the repo and install it locally. You can use the commands below.
-```
+```bash
 git clone https://github.com/mfinzi/LieConv.git
 cd LieConv
 pip install -e .
@@ -42,13 +42,15 @@ Dependencies will be automatically installed from the setup.py file with `pip in
 * (optional) [tensorboardX](https://github.com/lanpa/tensorboardX)
 
 ## Architecture
-For all experiments, we use the same LieResNet architecture where LieConv replaces an ordinary convolutional layer. This network can act on inputs that are any collection of coordinates and values `{x_i,v_i}_{i=1}^N`, and is detailed below and implemented in [/lie_conv/lieconv.py](/lie_conv/lieconv.py). We apply this same network architecture to RotMNIST dataset, the QM9 molecular property prediction dataset, and to the modeling of Hamiltonian dynamical systems.
+For all experiments, we use the same LieResNet architecture where LieConv replaces an ordinary convolutional layer. This network can act on inputs that are any collection of coordinates and values `{x_i,v_i}_{i=1}^N`, and is detailed below and implemented in [`lie_conv.lieconv`](/lie_conv/lieconv.py). We apply this same network architecture to RotMNIST dataset, the QM9 molecular property prediction dataset, and to the modeling of Hamiltonian dynamical systems.
+We visualize the architecture below. 
+
 <p align="center">
   <img src="https://user-images.githubusercontent.com/14368801/75301342-8bffc800-5808-11ea-9140-5b563556cf12.png" width=400>
 </p>
 
 ## QM9 Molecular Experiments
-To train the model on QM9 molecular prediction, run the script below with the --task specified by the strings from columns of the following table. The table shows Test MAE for each of the tasks with the T(3) group trained for 1000 epochs which takes ~48 hrs on a single 1080Ti GPU. The aug command specifies whether to use SO(3) data augmentation.
+To train the model on QM9 molecular prediction, run the script below with the `--task` specified by the strings from the first row of the following table. The table shows Test MAE for each of the tasks with the T(3) group trained for 1000 epochs which takes ~48 hrs on a single 1080Ti GPU. The `--aug` command specifies whether to use SO(3) data augmentation.
 ```bash
 python examples/train_molec.py --task 'homo' --lr 3e-3 --aug True --num_epochs 1000 --num_layers 6 \
   --log_suffix 'run_name_here' --network MolecLieResNet \
@@ -64,33 +66,33 @@ python examples/train_molec.py --task 'homo' --lr 3e-3 --aug True --num_epochs 1
 
 ## RotMNIST Experiments
 
-We provide commands to run LieConv on the RotMNIST data for different groups. The commands share hyper-parameters except for the name of the group and the `alpha` parameter that trades off between group and orbit distance in the neighborhoods. Aug specifies whether to use SO(2) data augmentation.
+We provide commands to run LieConv on the RotMNIST data for different groups. The commands share hyper-parameters except for the name of the group and the `--alpha` parameter that trades off between group and orbit distance in the neighborhoods. Aug specifies whether to use SO(2) data augmentation.
 
 ```bash
 # Trivial
-python examples/train_img.py --num_epochs=500 --aug=True --trainer_config "{'log_suffix':'mnistTrivial'}" \
+python examples/train_img.py --num_epochs=500 --trainer_config "{'log_suffix':'mnistTrivial'}" \
   --net_config "{'k':128,'total_ds':.1,'fill':1/15,'nbhd':25,'group':Trivial(2)}" \
-  --bs 25 --lr .003 --split "{'train':12000}"
+  --bs 25 --lr .003 --split "{'train':12000}" --aug=True
 
 # T2
-python examples/train_img.py --num_epochs=500 --aug=True --trainer_config "{'log_suffix':'mnistT2'}" \
+python examples/train_img.py --num_epochs=500 --trainer_config "{'log_suffix':'mnistT2'}" \
    --net_config "{'k':128,'total_ds':.1,'fill':1/15,'nbhd':25,'group':T(2)}" \
-   --bs 25 --lr .003 --split "{'train':12000}"
+   --bs 25 --lr .003 --split "{'train':12000}" --aug=True
 
 # SO2
-python examples/train_img.py --num_epochs=500 --aug=True --trainer_config "{'log_suffix':'mnistSO2'}" \
+python examples/train_img.py --num_epochs=500 --trainer_config "{'log_suffix':'mnistSO2'}" \
   --net_config "{'k':128,'total_ds':.1,'fill':1/15,'nbhd':25,'group':SO2(.2)}" \
-  --bs 25 --lr .003 --split "{'train':12000}"
+  --bs 25 --lr .003 --split "{'train':12000}" --aug=True
 
 #RxSO2
-python examples/train_img.py --num_epochs=500 --aug=True --trainer_config "{'log_suffix':'mnistRxSO2'}" \
+python examples/train_img.py --num_epochs=500 --trainer_config "{'log_suffix':'mnistRxSO2'}" \
   --net_config "{'k':128,'total_ds':.1,'fill':1/15,'nbhd':25,'group':RxSO2(.3)}" \
-  --bs 25 --lr 3e-3 --split "{'train':12000}" 
+  --bs 25 --lr 3e-3 --split "{'train':12000}" --aug=True
 
 #SE2
-python examples/train_img.py --num_epochs=500 --aug=True --trainer_config "{'log_suffix':'mnistSE2'}" \
+python examples/train_img.py --num_epochs=500 --trainer_config "{'log_suffix':'mnistSE2'}" \
   --net_config "{'k':128,'total_ds':.1,'fill':1/15,'nbhd':25,'group':SE:2(.2)}" \
-  --bs 25 --lr 3e-3 --split "{'train':12000}" 
+  --bs 25 --lr 3e-3 --split "{'train':12000}" --aug=True 
 ```
 
 Using the commands above we obtain the following test errors (%) for the different groups:
@@ -125,6 +127,7 @@ python examples/train_springs.py --num_epochs 100 --n_train 3000 \
 ```
 Note that OGN and HOGN require the graphnet functionality to be installed with `pip install -e .[GN]`.
 
+In the Figure below we show the predictions of LieConv and HOGN, a SOTA architecture for modeling physical systems, on a 6-body spring dynamics problem.
 <p align="center">
   <img src="https://user-images.githubusercontent.com/14368801/75301628-514a5f80-5809-11ea-9d6f-201550d8a0bc.png" width=300>
   <img src="https://user-images.githubusercontent.com/14368801/75301630-514a5f80-5809-11ea-901e-1de73ddcdaea.png" width=300>
