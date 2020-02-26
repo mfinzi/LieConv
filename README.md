@@ -35,8 +35,7 @@ python examples/train_molec.py --task 'homo' --lr 3e-3 --aug True --num_epochs 1
 </p>!
 
 |Alpha|Delta|HOMO|LUMO|Mu|Cv|G|H|R2|U|U0|ZPVE|
-|bohr^3|meV|meV|meV|Debye|cal/mol K|meV|meV|bohr^3|meV|meV|meV|
-|-----|-----|-----|-----|-----|-----|-----|-----|-----|-----|-----|-----|
+|bohr^3|meV|meV|meV|Debye|cal/mol K|meV|meV|bohr^2|meV|meV|meV|
 |.084|49|30|25|.032|.038|22|24|.800|19|19|2.280|
 
 # RotMNIST Exps
