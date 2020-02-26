@@ -31,7 +31,8 @@ pip install -e .
 For the optional graphnets and tensorboardX functionality you can replace the last line with
 `pip install -e .[GN,TBX]`
 
-## Dependencies
+### Dependencies
+Dependencies will be automatically installed from the setup.py file with `pip install -e .` but they are listed here for reference.
 * Python 3.7+
 * [PyTorch](http://pytorch.org/) 1.3.0+
 * [torchvision](https://github.com/pytorch/vision/)
