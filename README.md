@@ -1,16 +1,16 @@
 # LieConv
 
 # Installation
-To install as a package, run `pip install git+https://github.com/mfinzi/lie-conv#egg=LieConv`. Dependencies will be checked and installed from the setup.py file.
+To install as a package, run `pip install git+https://github.com/mfinzi/LieConv#egg=LieConv`. Dependencies will be checked and installed from the setup.py file.
 
-To install the repo locally, run 
+To run the scripts you will need to clone the repo and install it locally. You can use the commands below.
 ```
 git clone https://github.com/mfinzi/LieConv.git
 cd LieConv
 pip install -e .
 ```
 
-For the optional graphnets and tensorboardX you can replace the last line with
+For the optional graphnets and tensorboardX functionality you can replace the last line with
 `pip install -e .[GN,TBX]`
 
 # Dependencies
