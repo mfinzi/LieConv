@@ -47,7 +47,7 @@ For all experiments, we use the same LieResNet architecture where LieConv replac
 </p>
 
 ## QM9 Molecular Experiments
-To train the model on QM9 molecular prediction, run the script below with the --task specified by the strings from columns of the following table. The table shows Test MAE for each of the tasks with the T(3) group trained for 1000 epochs which takes ~48 hrs.
+To train the model on QM9 molecular prediction, run the script below with the --task specified by the strings from columns of the following table. The table shows Test MAE for each of the tasks with the T(3) group trained for 1000 epochs which takes ~48 hrs on a single 1080Ti GPU. The aug command specifies whether to use SO(3) data augmentation.
 ```bash
 python examples/train_molec.py --task 'homo' --lr 3e-3 --aug True --num_epochs 1000 --num_layers 6 \
   --log_suffix 'run_name_here' --network MolecLieResNet \
@@ -63,7 +63,7 @@ python examples/train_molec.py --task 'homo' --lr 3e-3 --aug True --num_epochs 1
 
 ## RotMNIST Experiments
 
-We provide comands to run LieConv on the RotMNIST data for different groups. The comands share hyper-parameters except for the name of the group and the `alpha` parameter that defines the metric on the group.
+We provide commands to run LieConv on the RotMNIST data for different groups. The commands share hyper-parameters except for the name of the group and the `alpha` parameter that trades off between group and orbit distance in the neighborhoods. Aug specifies whether to use SO(2) data augmentation.
 
 ```bash
 # Trivial
@@ -92,7 +92,7 @@ python examples/train_img.py --num_epochs=500 --aug=True --trainer_config "{'log
   --bs 25 --lr 3e-3 --split "{'train':12000}" 
 ```
 
-Using the comands above we obtain the following test errors for different groups:
+Using the commands above we obtain the following test errors (%) for the different groups:
 
 | Trivial | T2   | SO2  | RxSO2 | SE2  |
 |---------|------|------|-------|------|
@@ -100,13 +100,29 @@ Using the comands above we obtain the following test errors for different groups
 
 
 ## Spring Dynamics Experiments
+We apply our method in the modeling of a multi particle spring system, an example of a Hamiltonian system that conserves linear and angular momentum. To train using the HLieResNet model, simply run
 
-Group substitutions: `Trivial(2)`, `T(2)`, `SO2()`
 ```bash
 python examples/train_springs.py --num_epochs 100 --n_train 3000 \
-  --network HLieResNet --net_cfg "{'group':T(2)}" --lr 1e-3
+  --network HLieResNet --net_cfg "{'group':T(2),'k':384,'num_layers':6}" --lr 1e-3
 ```
+where `Trivial(2)`, `T(2)`, `SO2()` can be substituted in for T(2) to specify the group equivariance. The first time this command is run will take a while as the dataset is generated and then saved to disk.
 
+The FC, HFC, OGN, and HOGN baselines can be run as follows:
+```bash
+python examples/train_springs.py --num_epochs 100 --n_train 3000 \
+  --network FC --net_cfg "{'k':256,'num_layers':4}" --lr 3e-3
+
+python examples/train_springs.py --num_epochs 100 --n_train 3000 \
+  --network HFC --net_cfg "{'k':256,'num_layers':4}" --lr 1e-2
+
+python examples/train_springs.py --num_epochs 100 --n_train 3000 \
+  --network OGN --net_cfg "{'k':256}" --lr 1e-3
+
+python examples/train_springs.py --num_epochs 100 --n_train 3000 \
+  --network HOGN --net_cfg "{'k':256}" --lr 1e-3
+```
+Note that OGN and HOGN require the graphnet functionality to be installed with `pip install -e .[GN]`.
 
 <p align="center">
   <img src="https://user-images.githubusercontent.com/14368801/75301628-514a5f80-5809-11ea-9d6f-201550d8a0bc.png" width=300>
