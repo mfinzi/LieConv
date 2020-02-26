@@ -30,6 +30,15 @@ python examples/train_molec.py --task 'homo' --lr 3e-3 --aug True --num_epochs 1
   --net_config "{'group':T(3),'fill':1.}"
 
 ```
+<p align="center">
+  <img src="https://user-images.githubusercontent.com/12687085/75298868-9e2a3800-5801-11ea-9b87-b02886d78e95.png" width=50>
+</p>!
+
+|Alpha|Delta|HOMO|LUMO|Mu|Cv|G|H|R2|U|U0|ZPVE|
+|bohr^3|meV|meV|meV|Debye|cal/mol K|meV|meV|bohr^3|meV|meV|meV|
+|-----|-----|-----|-----|-----|-----|-----|-----|-----|-----|-----|-----|
+|.084|49|30|25|.032|.038|22|24|.800|19|19|2.280|
+
 # RotMNIST Exps
 We provide comands to run LieConv on the RotMNIST data for different groups. The comands share hyper-parameters except for the name of the group and the `alpha` parameter that defines the metric on the group.
 
