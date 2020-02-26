@@ -47,7 +47,7 @@ For all experiments, we use the same LieResNet architecture where LieConv replac
 </p>
 
 ## QM9 Molecular Experiments
-
+To train the model on QM9 molecular prediction, run the script below with the --task specified from the following table. The table shows Test MAE for each of the tasks with the T(3) group trained for 1000 epochs which takes ~48 hrs.
 ```bash
 python examples/train_molec.py --task 'homo' --lr 3e-3 --aug True --num_epochs 1000 --num_layers 6 \
   --log_suffix 'run_name_here' --network MolecLieResNet \
