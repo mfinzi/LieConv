@@ -1,5 +1,6 @@
 # Generalizing Convolutional Neural Networks for Equivarianceto Lie Groups on Arbitrary Continuous Data
-This repo contains the implementation and the experiments for the paper _Generalizing Convolutional Neural Networks for Equivariance to Lie Groups_ by Marc Finzi, Samuel Stanton, Pavel Izmailov, and Andrew Gordon Wilson.
+This repo contains the implementation and the experiments for the paper 
+_Generalizing Convolutional Neural Networks for Equivariance to Lie Groups_ by Marc Finzi, Samuel Stanton, Pavel Izmailov, and Andrew Gordon Wilson.
 
 ## Introduction
 
@@ -12,8 +13,6 @@ LieConv is an equivariant convolutional layer that can be applied on generic coo
 <!-- To accomplish this, we provide an interface for implementing new equivariances by defining the lifting procedure and the matrix exponential and logarithm maps. With these three pieces, a new convolutional layer can be instantiated that reflects the given symmetry. Currently implemented are the Trivial, T(d), SO(2), Rx, RxSO(2), SE(2), and SE(3) groups.-->
 
 <!--The framework is especially effective for Abelian groups, as for these groups the LieConv layer without subsampling is exactly and deterministically equivariant to the transformations. The approach also extends to non-commutative groups, but relies on a sampling procedure that means that the layer is only equivariant in distribution. -->
-
-We develop a ResNet model using LieConv as an internal layer, and this network can act on inputs that are any collection of coordinates and values `{x_i,v_i}_{i=1}^N`. We apply this same network architecture to RotMNIST dataset, the QM9 molecular property prediction dataset, and to the modeling of Hamiltonian dynamical systems.
 
 <p align="center">
   <img src="https://user-images.githubusercontent.com/14368801/75301493-f0bb2280-5808-11ea-8ec1-66171e5167ff.gif" width=500>
@@ -42,7 +41,7 @@ For the optional graphnets and tensorboardX functionality you can replace the la
 * (optional) [tensorboardX](https://github.com/lanpa/tensorboardX)
 
 ## Architecture
-
+For all experiments, we use the same LieResNet architecture where LieConv replaces an ordinary convolutional layer. This network can act on inputs that are any collection of coordinates and values `{x_i,v_i}_{i=1}^N`, and is detailed below and implemented in . We apply this same network architecture to RotMNIST dataset, the QM9 molecular property prediction dataset, and to the modeling of Hamiltonian dynamical systems.
 <p align="center">
   <img src="https://user-images.githubusercontent.com/14368801/75301342-8bffc800-5808-11ea-9140-5b563556cf12.png" width=400>
 </p>
