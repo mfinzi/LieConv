@@ -1,8 +1,5 @@
 """
-Utility function for PointConv
-Originally from : https://github.com/yanx27/Pointnet_Pointnet2_pytorch/blob/master/utils.py
-Modify by Wenxuan Wu
-Date: September 2019
+Utility functions adapted from https://github.com/yanx27/Pointnet_Pointnet2_pytorch/blob/master/utils.py
 """
 
 import torch

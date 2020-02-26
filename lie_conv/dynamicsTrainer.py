@@ -4,7 +4,7 @@ import torch.nn as nn
 from oil.utils.utils import Eval
 from oil.model_trainers import Trainer
 from lie_conv.hamiltonian import HamiltonianDynamics,EuclideanK
-from lie_conv.pointconv import pConvBNrelu, PointConv, Pass, Swish, LieResNet
+from lie_conv.lieconv import pConvBNrelu, PointConv, Pass, Swish, LieResNet
 from lie_conv.moleculeTrainer import BottleBlock, GlobalPool
 from lie_conv.utils import Expression, export, Named
 import numpy as np

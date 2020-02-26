@@ -9,9 +9,8 @@ from functools import partial
 from torch.optim import Adam
 from oil.tuning.args import argupdated_config
 import copy
-import lie_conv.pointconv as pointconv
 import lie_conv.liegroups as liegroups
-from lie_conv.pointconv import ImgLieResnet
+from lie_conv.lieconv import ImgLieResnet
 from lie_conv.datasets import MnistRotDataset
 
 

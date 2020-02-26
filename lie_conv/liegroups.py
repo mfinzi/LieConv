@@ -187,6 +187,17 @@ def LieSubGroup(liegroup,generators):
         #@classmethod
         def matrix2components(self,A):
             return super().matrix2components(A)[...,generators]
+        def lifted_elems(self,pt,mask=None,nsamples=1):
+            """ pt (bs,n,D) mask (bs,n), per_point specifies whether to
+                use a different group element per atom in the molecule"""
+            #return farthest_lift(self,pt,mask,nsamples,alpha)
+            # same lifts for each point right now
+            bs,n,D = pt.shape[:3] # origin = [1,0]
+            assert D==2, "Lifting from R^2 to SO(2) supported only"
+            r = norm(pt,dim=-1).unsqueeze(-1)
+            theta = torch.atan2(pt[...,1],pt[...,0]).unsqueeze(-1)
+            return theta,r # checked that lifted_elem(v)@[0,1] = v
+        
     return subgroup
 
 @export

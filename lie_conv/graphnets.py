@@ -5,7 +5,7 @@ from torch_scatter import scatter_add
 from torch_geometric.nn import MetaLayer
 from lie_conv.utils import Named
 from lie_conv.hamiltonian import HamiltonianDynamics,EuclideanK
-from lie_conv.pointconv import Swish
+from lie_conv.lieconv import Swish
 
 
 class EdgeModel(torch.nn.Module):
