@@ -279,6 +279,51 @@ class RxSO2(LieGroup):
     def __repr__(self):
         return f"{self.__class__}({self.alpha})"
 
+
+# @export
+# class Rx(LieGroup):
+#     def __init__(self,k):
+#         """ Returns the k dimensional translation group. Assumes lifting from R^k"""
+#         super().__init__()
+#         self.q_dim = k-1 # The dimension of the orbit identifier
+#         self.rep_dim = k # dimension on which G acts
+#         self.embed_dim = 1 # dimension that g is embedded into
+#     def log(self,g):
+#         return g
+#     def exp(self,a):
+#         return a
+#     def lifted_elems(self,pt,mask=None,nsamples=1):
+#         #TODO: correctly handle masking, unnecessary for image data
+#         d=self.rep_dim
+#         # Sample stabilizer of the origin
+#         #thetas = (torch.rand(*p.shape[:-1],num_samples).to(p.device)*2-1)*np.pi
+#         #thetas = torch.randn(nsamples)*2*np.pi - np.pi
+#         thetas = torch.linspace(-np.pi,np.pi,nsamples+1)[1:] 
+#         for _ in pt.shape[:-1]: # uniform on circle, but -pi and pi ar the same
+#             thetas=thetas.unsqueeze(0)
+#         R = torch.zeros(*pt.shape[:-1],nsamples,d,d).to(pt.device)
+#         sin,cos = thetas.sin(),thetas.cos()
+#         R[...,0,0] = cos
+#         R[...,1,1] = cos
+#         R[...,0,1] = -sin
+#         R[...,1,0] = sin
+#         R[...,2,2] = 1
+#         # Get T(p)
+#         T = torch.zeros_like(R)
+#         T[...,0,0]=1
+#         T[...,1,1]=1
+#         T[...,2,2]=1
+#         T[...,:2,2] = pt.unsqueeze(-2)
+#         flat_a = self.log(T@R).reshape(*pt.shape[:-2],pt.shape[-2]*nsamples,d)
+#         return flat_a, None
+#     def distance(self,abq_pairs):
+#         d_theta = abq_pairs[...,0].abs()
+#         d_r = norm(abq_pairs[...,1:],dim=-1)
+#         return d_theta*self.alpha + (1-self.alpha)*d_r
+#     def __str__(self):
+#         return f"{self.__class__}({self.alpha})"
+#     def __repr__(self):
+#         return f"{self.__class__}({self.alpha})"
 @export
 class SE2(SO2):
     embed_dim = 3
@@ -336,8 +381,8 @@ class SE2(SO2):
         # Sample stabilizer of the origin
         #thetas = (torch.rand(*p.shape[:-1],num_samples).to(p.device)*2-1)*np.pi
         #thetas = torch.randn(nsamples)*2*np.pi - np.pi
-        thetas = torch.linspace(-np.pi,np.pi,nsamples)
-        for _ in pt.shape[:-1]:
+        thetas = torch.linspace(-np.pi,np.pi,nsamples+1)[1:] 
+        for _ in pt.shape[:-1]: # uniform on circle, but -pi and pi ar the same
             thetas=thetas.unsqueeze(0)
         R = torch.zeros(*pt.shape[:-1],nsamples,d,d).to(pt.device)
         sin,cos = thetas.sin(),thetas.cos()
@@ -352,7 +397,7 @@ class SE2(SO2):
         T[...,1,1]=1
         T[...,2,2]=1
         T[...,:2,2] = pt.unsqueeze(-2)
-        flat_a = self.log(R@T).reshape(*pt.shape[:-2],pt.shape[-2]*nsamples,d)
+        flat_a = self.log(T@R).reshape(*pt.shape[:-2],pt.shape[-2]*nsamples,d)
         return flat_a, None
     def distance(self,abq_pairs):
         d_theta = abq_pairs[...,0].abs()
