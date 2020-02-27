@@ -109,7 +109,7 @@ We apply our method in the modeling of a multi particle spring system, an exampl
 python examples/train_springs.py --num_epochs 100 --n_train 3000 \
   --network HLieResNet --net_cfg "{'group':T(2),'k':384,'num_layers':4}" --lr 1e-3
 ```
-where `Trivial(2)`, `T(2)`, `SO2()` can be substituted in for T(2) to specify the group equivariance. The first time this command is run will take a while as the dataset is generated and then saved to disk.
+where `Trivial(2)`, `T(2)`, `SO2()` can be substituted in for `T(2)` to specify the group equivariance. The first time this command is run will take a while as the dataset is generated and then saved to disk.
 
 The FC, HFC, OGN, and HOGN baselines can be run as follows:
 ```bash
