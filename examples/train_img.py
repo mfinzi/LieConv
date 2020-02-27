@@ -9,8 +9,9 @@ from functools import partial
 from torch.optim import Adam
 from oil.tuning.args import argupdated_config
 import copy
-import lie_conv.liegroups as liegroups
-from lie_conv.lieconv import ImgLieResnet
+import lie_conv.lieGroups as lieGroups
+import lie_conv.lieConv as lieConv
+from lie_conv.lieConv import ImgLieResnet
 from lie_conv.datasets import MnistRotDataset
 
 
@@ -41,4 +42,4 @@ if __name__=="__main__":
     Trial = train_trial(makeTrainer)
     defaults = copy.deepcopy(makeTrainer.__kwdefaults__)
     defaults['save'] = False
-    Trial(argupdated_config(defaults,namespace=(pointconv,liegroups)))
+    Trial(argupdated_config(defaults,namespace=(lieConv,lieGroups)))

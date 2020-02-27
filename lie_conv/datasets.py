@@ -11,7 +11,7 @@ from torch.utils.data import Dataset
 from .utils import Named, export, Expression, FixedNumpySeed, RandomZrotation
 from oil.datasetup.datasets import EasyIMGDataset
 from lie_conv.hamiltonian import HamiltonianDynamics, KeplerH, SpringH
-from lie_conv.liegroups import SO3
+from lie_conv.lieGroups import SO3
 from torchdiffeq import odeint_adjoint as odeint
 from corm_data.utils import initialize_datasets
 import torchvision
@@ -208,7 +208,7 @@ from torchvision.datasets.vision import VisionDataset
 # !wget -nc http://www.iro.umontreal.ca/~lisa/icml2007data/mnist_rotation_new.zip
 # # uncompress the zip file
 # !unzip -n mnist_rotation_new.zip -d mnist_rotation_new
-class MnistRotDataset(VisionDataset):
+class MnistRotDataset(VisionDataset,metaclass=Named):
     ignored_index = -100
     class_weights = None
     balanced = True

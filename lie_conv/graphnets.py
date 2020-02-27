@@ -3,9 +3,9 @@ import torch.nn as nn
 from torch.nn import Sequential as Seq, Linear as Lin
 from torch_scatter import scatter_add
 from torch_geometric.nn import MetaLayer
-from lie_conv.utils import Named
+from lie_conv.utils import Named, export
 from lie_conv.hamiltonian import HamiltonianDynamics,EuclideanK
-from lie_conv.lieconv import Swish
+from lie_conv.lieConv import Swish
 
 
 class EdgeModel(torch.nn.Module):
@@ -69,6 +69,7 @@ class GNlayer(torch.nn.Module):
         vp,ep,up = self.layer(v,edge_index,e,u,batch)
         return (vp, ep, up, edge_index, batch)
 
+@export
 class OGN(torch.nn.Module,metaclass=Named):
     def __init__(self,d=2,sys_dim=2,k=64,num_layers=1):
         super().__init__()
@@ -112,6 +113,7 @@ class OGN(torch.nn.Module,metaclass=Named):
         dynamics = torch.cat([flat_qdot,flat_pdot],dim=-1)
         return dynamics
 
+@export
 class HOGN(OGN):
     def __init__(self,d=2,sys_dim=2,k=64,num_layers=1):
         super().__init__(d,sys_dim,k,num_layers)
@@ -129,6 +131,7 @@ class HOGN(OGN):
         dynamics = HamiltonianDynamics(lambda t,z: self.compute_H(z,sysP),wgrad=wgrad)
         return dynamics(t,z)
 
+@export
 class VOGN(OGN):
     def __init__(self,d=2,sys_dim=2,k=64,num_layers=1):
         super().__init__()
@@ -176,6 +179,7 @@ class VOGN(OGN):
         dynamics = HamiltonianDynamics(lambda t,z: self.compute_H(z,sysP),wgrad=wgrad)
         return dynamics(t,z)
 
+@export
 class MolecGN(nn.Module,metaclass=Named):
     def __init__(self,num_species,charge_scale,num_outputs=1,d=3,k=64,num_layers=1):
         super().__init__()

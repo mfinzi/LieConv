@@ -4,12 +4,12 @@ import torch.nn as nn
 from oil.utils.utils import Eval
 from oil.model_trainers import Trainer
 from lie_conv.hamiltonian import HamiltonianDynamics,EuclideanK
-from lie_conv.lieconv import pConvBNrelu, PointConv, Pass, Swish, LieResNet
+from lie_conv.lieConv import pConvBNrelu, PointConv, Pass, Swish, LieResNet
 from lie_conv.moleculeTrainer import BottleBlock, GlobalPool
 from lie_conv.utils import Expression, export, Named
 import numpy as np
 from torchdiffeq import odeint
-from lie_conv.liegroups import T
+from lie_conv.lieGroups import T
 
 class Partial(nn.Module):
     def __init__(self,module,*args,**kwargs):
@@ -229,6 +229,9 @@ class FCHamNet(LieConvNetT2):
         return self.net(torch.cat(mean_subbed,dim=-1).reshape(q.shape[0],-1)).squeeze(-1)
 
 @export
+class HFC(FCHamNet): pass
+
+@export
 class RawDynamicsNet(nn.Module,metaclass=Named):
     def __init__(self, d=2,k=300,num_layers=4,sys_dim=2,**kwargs):
         super().__init__()
@@ -247,6 +250,8 @@ class RawDynamicsNet(nn.Module,metaclass=Named):
         zm = torch.cat(((q - q.mean(1,keepdims=True)).reshape(z.shape[0],-1),p,sysP.reshape(z.shape[0],-1)),dim=1)
         return self.net(zm)
 
+@export
+class FC(RawDynamicsNet): pass
 
     
 # if __name__=="__main__":

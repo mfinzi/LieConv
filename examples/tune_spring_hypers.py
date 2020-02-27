@@ -8,7 +8,7 @@ from oil.utils.utils import LoaderTo, islice, FixedNumpySeed, cosLr
 from lie_conv.datasets import SpringDynamics
 from lie_conv.dynamicsTrainer import IntegratedDynamicsTrainer,FCHamNet, RawDynamicsNet, LieResNetT2,HLieResNet
 from graphnets import OGN,HOGN, VOGN
-from liegroups import SO2, T,Trivial
+from lie_conv.lieGroups import SO2, T,Trivial
 
 def makeTrainer(*,network,net_cfg,lr=1e-2,n_train=3000,regen=False,
                 dtype=torch.float32,device=torch.device('cuda'),bs=200,num_epochs=10,

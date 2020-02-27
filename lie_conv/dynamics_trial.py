@@ -24,7 +24,7 @@ class DynamicsTrial(object):
         # # trainer.model.eval()
 
         # trainer.train(round(cfg['n_epochs'] / 2))
-        trainer.train(cfg['n_epochs'])
+        trainer.train(cfg['num_epochs'])
         save = cfg.pop('save',True)
         # trainer.model.load_state_dict(trainer.ckpt[1])
         # trainer.model.train()

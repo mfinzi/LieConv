@@ -1,11 +1,11 @@
 import torch
 import torch.nn as nn
 from oil.model_trainers import Trainer
-from lie_conv.lieconv import PointConv, Pass, Swish, GlobalPool
-from lie_conv.lieconv import norm, LieResNet, BottleBlock
+from lie_conv.lieConv import PointConv, Pass, Swish, GlobalPool
+from lie_conv.lieConv import norm, LieResNet, BottleBlock
 from lie_conv.utils import export, Named
 from lie_conv.datasets import RandomRotation
-from lie_conv.liegroups import SE3
+from lie_conv.lieGroups import SE3
 import numpy as np
 
 

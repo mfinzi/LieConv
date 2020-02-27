@@ -7,14 +7,17 @@ from torch.optim import Adam
 from oil.utils.utils import LoaderTo, islice, FixedNumpySeed, cosLr
 from lie_conv.datasets import SpringDynamics
 from lie_conv import datasets
-from lie_conv.dynamicsTrainer import IntegratedDynamicsTrainer, FCHamNet, RawDynamicsNet, LieResNetT2
-from lie_conv.graphnets import OGN,HOGN, VOGN
-import lie_conv.liegroups as liegroups
+from lie_conv.dynamicsTrainer import IntegratedDynamicsTrainer, FC
+
+import lie_conv.lieGroups as lieGroups
 from lie_conv import dynamicsTrainer
 from lie_conv.dynamics_trial import DynamicsTrial
+try:
+    import lie_conv.graphnets as graphnets
+except ImportError:
+    import lie_conv.lieConv as graphnets
 
-
-def makeTrainer(*,network,net_cfg,lr=1e-2,n_train=3000,regen=False,dataset=SpringDynamics,
+def makeTrainer(*,network=FC,net_cfg={},lr=1e-2,n_train=3000,regen=False,dataset=SpringDynamics,
                 dtype=torch.float32,device=torch.device('cuda'),bs=200,num_epochs=2,
                 trainer_config={}):
     # Create Training set and model
@@ -33,18 +36,17 @@ def makeTrainer(*,network,net_cfg,lr=1e-2,n_train=3000,regen=False,dataset=Sprin
     return IntegratedDynamicsTrainer(model,dataloaders,opt_constr,lr_sched,
                                     log_args={'timeFrac':1/4,'minPeriod':0.0},**trainer_config)
 
-best_hypers = {
-    LieResNetT2: {'net_cfg':{'k':384, 'num_layers':4},'lr':1e-3},
-    VOGN: {'net_cfg':{'k':512},'lr':3e-3},
-    HOGN: {'net_cfg':{'k':256},'lr':1e-2},
-    OGN: {'net_cfg':{'k':256},'lr':1e-2},
-    FCHamNet: {'net_cfg':{'k':256,'num_layers':4},'lr':1e-2},
-    RawDynamicsNet: {'net_cfg':{'k':256},'lr':3e-3},
-}
+# best_hypers = {
+#     LieResNetT2: {'net_cfg':{'k':384, 'num_layers':4},'lr':1e-3},
+#     VOGN: {'net_cfg':{'k':512},'lr':3e-3},
+#     HOGN: {'net_cfg':{'k':256},'lr':1e-2},
+#     OGN: {'net_cfg':{'k':256},'lr':1e-2},
+#     FCHamNet: {'net_cfg':{'k':256,'num_layers':4},'lr':1e-2},
+#     RawDynamicsNet: {'net_cfg':{'k':256},'lr':3e-3},
+# }
 
 Trial = DynamicsTrial(makeTrainer)
 if __name__=='__main__':
     defaults = copy.deepcopy(makeTrainer.__kwdefaults__)
-    defaults.update({'network':LieResNetT2,'net_cfg':{'k':384, 'num_layers':4},'lr':1e-3})
     #defaults['early_stop_metric']='val_MSE'
-    print(Trial(argupdated_config(defaults,namespace=(dynamicsTrainer,liegroups,datasets))))
+    print(Trial(argupdated_config(defaults,namespace=(dynamicsTrainer,lieGroups,datasets,graphnets))))

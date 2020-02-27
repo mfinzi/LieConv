@@ -9,7 +9,7 @@ from corm_data.collate import collate_fn
 from lie_conv.moleculeTrainer import MolecResNet, MoleculeTrainer
 from oil.datasetup.datasets import split_dataset
 import lie_conv.moleculeTrainer as moleculeTrainer
-import lie_conv.liegroups as liegroups
+import lie_conv.lieGroups as lieGroups
 import functools
 import copy
 
@@ -54,7 +54,7 @@ Trial = train_trial(makeTrainer)
 if __name__=='__main__':
     defaults = copy.deepcopy(makeTrainer.__kwdefaults__)
     defaults['early_stop_metric']='valid_MAE'
-    print(Trial(argupdated_config(defaults,namespace=(moleculeTrainer,liegroups))))
+    print(Trial(argupdated_config(defaults,namespace=(moleculeTrainer,lieGroups))))
 
     # thestudy = Study(simpleTrial,argupdated_config(config_spec,namespace=__init__),
     #                 study_name="point2d",base_log_dir=log_dir)
