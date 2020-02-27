@@ -8,7 +8,7 @@ import warnings
 import h5py
 import os
 from torch.utils.data import Dataset
-from .utils import Named, export, Expression, FixedNumpySeed, RandomZrotation
+from .utils import Named, export, Expression, FixedNumpySeed, RandomZrotation, GaussianNoise
 from oil.datasetup.datasets import EasyIMGDataset
 from lie_conv.hamiltonian import HamiltonianDynamics, KeplerH, SpringH
 from lie_conv.lieGroups import SO3
@@ -117,36 +117,6 @@ try:
 except ImportError:
     warnings.warn('torch_geometric failed to import MNISTSuperpixel cannot be used.', ImportWarning)
 
-
-
-# @export
-# class RotMNIST(torchvision.datasets.MNIST,metaclass=Named):
-#     ignored_index = -100
-#     class_weights = None
-#     stratify=True
-#     num_targets = 10
-#     def __init__(self,*args,dataseed=0,**kwargs):
-#         super().__init__(*args,download=True,**kwargs)
-#         xy = (np.mgrid[:28,:28]-13.5)/5
-#         disk_cutout = xy[0]**2 +xy[1]**2 < 7
-#         self.img_coords = torch.from_numpy(xy[:,disk_cutout]).float()
-#         self.cutout_data = self.data[:,disk_cutout].unsqueeze(1)
-#         with FixedNumpySeed(dataseed):
-#             angles = torch.rand(len(self.data))*2*np.pi
-#         R = torch.zeros(len(self.data),2,2)
-#         R[:,0,0] = R[:,1,1] = angles.cos()
-#         R[:,0,1] = R[:,1,0] = angles.sin()
-#         R[:,1,0] *=-1
-#         self.img_coords = R@self.img_coords
-
-#     def __getitem__(self,index):
-#         index = int(index)
-#         pixel_vals = (self.cutout_data[index]-.1307)/0.3081
-#         return ((self.img_coords[index],pixel_vals),self.targets[index].item())
-#     def __len__(self):
-#         return len(self.data)
-#     def default_aug_layers(self):
-#         return nn.Sequential()
 class RandomRotateTranslate(nn.Module):
     def __init__(self,max_trans=2):
         super().__init__()
@@ -168,6 +138,7 @@ class RandomRotateTranslate(nn.Module):
 
 @export
 class RotMNIST(EasyIMGDataset,torchvision.datasets.MNIST):
+    """ Unofficial RotMNIST dataset created on the fly by rotating MNIST"""
     means = (0.5,)
     stds = (0.25,)
     num_targets = 10
@@ -209,6 +180,7 @@ from torchvision.datasets.vision import VisionDataset
 # # uncompress the zip file
 # !unzip -n mnist_rotation_new.zip -d mnist_rotation_new
 class MnistRotDataset(VisionDataset,metaclass=Named):
+    """ Official RotMNIST dataset."""
     ignored_index = -100
     class_weights = None
     balanced = True
@@ -337,17 +309,6 @@ class DynamicsDataset(Dataset, metaclass=Named):
         """
         batch_size, _ = z0.shape
         with torch.no_grad():
-            # if torch.is_tensor(delta_t):
-            #     trajectories = []
-            #     time_steps = []
-            #     for i in range(batch_size):
-            #         ts = torch.linspace(0, traj_len * delta_t[i], traj_len).double()
-            #         zs = odeint(dynamics, z0[i:i + 1], ts, rtol=1e-8, method='rk4').detach()
-            #         time_steps.append(ts)
-            #         trajectories.append(zs)
-            #     ts = torch.stack(time_steps)
-            #     zs = torch.cat(trajectories, dim=1)
-            # else:
             ts = torch.linspace(0, traj_len * delta_t, traj_len).double()
             zs = odeint(dynamics, z0, ts, rtol=1e-8, method='rk4').detach()
             ts = ts.expand(batch_size, -1)
@@ -399,23 +360,6 @@ class DynamicsDataset(Dataset, metaclass=Named):
         """
         raise NotImplementedError
     
-    def compute_normalization(self):
-        # not tested after refactor
-        SysPm,SysPs = self.SysP.mean((0,1),keepdims=True),self.SysP.std((0,1),keepdims=True)
-        zm,zs = self.Zs.mean(),self.Zs.std()
-        return zm,zs,SysPm,SysPs
-    
-    def input_normalizer(self):
-        # not tested after refactor
-        zm,zs,sm,ss = self.compute_normalization()
-        class normalizer(nn.Module):
-            def __init__(self2,model):
-                super().__init__()
-                self2.model=model
-            def forward(self2,t,z,sysP,*args,**kwargs):
-                return self2.model(t,(z-zm.to(z.device))/zs.to(z.device),(sysP-sm.to(z.device))/ss.to(z.device),*args,**kwargs)
-        return normalizer
-
 @export
 class SpringDynamics(DynamicsDataset):
     default_root_dir = os.path.expanduser('~/datasets/ODEDynamics/SpringDynamics/')

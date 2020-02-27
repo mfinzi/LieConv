@@ -1,4 +1,4 @@
-import copy
+import copy, warnings
 from oil.tuning.args import argupdated_config
 from oil.datasetup.datasets import split_dataset
 import torch
@@ -16,6 +16,8 @@ try:
     import lie_conv.graphnets as graphnets
 except ImportError:
     import lie_conv.lieConv as graphnets
+    warnings.warn('Failed to import graphnets. Please install using \
+                `pip install .[GN]` for this functionality', ImportWarning)
 
 def makeTrainer(*,network=FC,net_cfg={},lr=1e-2,n_train=3000,regen=False,dataset=SpringDynamics,
                 dtype=torch.float32,device=torch.device('cuda'),bs=200,num_epochs=2,

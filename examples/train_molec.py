@@ -30,8 +30,6 @@ def makeTrainer(*, task='homo', device='cuda', lr=1e-2, bs=100, num_epochs=500,
         for ds in datasets.values():
             ds.data['positions'] = (ds.data['positions']-mean[None,None,:])/std
     model = network(num_species,charge_scale,**net_config).to(device)
-    # if hasattr(model,'add_features_to'):
-    #     for ds in datasets.values(): model.add_features_to(ds)
     # Create train and Val(Test) dataloaders and move elems to gpu
     dataloaders = {key:LoaderTo(DataLoader(dataset,batch_size=bs,num_workers=0,
                     shuffle=(key=='train'),pin_memory=True,collate_fn=collate_fn,drop_last=True),
@@ -41,10 +39,6 @@ def makeTrainer(*, task='homo', device='cuda', lr=1e-2, bs=100, num_epochs=500,
     
     # Initialize optimizer and learning rate schedule
     opt_constr = functools.partial(Adam, lr=lr)
-    # if plateau:
-    #     lr_sched = functools.partial(ReduceLROnPlateau,patience=20,threshold=0.02,
-    #                         factor=2/3,min_lr=1e-5)
-    # else:
     cos = cosLr(num_epochs)
     lr_sched = lambda e: min(e / (.01 * num_epochs), 1) * cos(e)
     return MoleculeTrainer(model,dataloaders,opt_constr,lr_sched,

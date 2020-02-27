@@ -252,24 +252,3 @@ class RawDynamicsNet(nn.Module,metaclass=Named):
 
 @export
 class FC(RawDynamicsNet): pass
-
-    
-# if __name__=="__main__":
-#     from snake_oil_train import TrainTrial,base_cfg
-#     from datasets import SpringDynamics
-#     from oil.tuning.study import Study
-#     from oil.tuning.args import argupdated_config
-#     import __init__
-#     log_dir = os.path.expanduser('~/tb-experiments/testing1234/')
-#     specialized_cfg = {'network':HamNet,'optim':torch.optim.Adam,'device':'cpu','precision':'double',
-#                             'dataset':SpringDynamics,'trainer':IntegratedDynamicsTrainer,
-#                             'trainer_config':{'log_dir':log_dir,'log_args':{'timeFrac':1,'minPeriod':0}},
-#                             'loader_config':{'lab_BS':25,'amnt_dev':0.0},
-#                             'num_epochs':10}
-#     config_spec = {**base_cfg,**specialized_cfg}
-#     thestudy = Study(TrainTrial,argupdated_config(config_spec,namespace=__init__),
-#                     study_name="springpoint",base_log_dir=log_dir)
-#     thestudy.run(ordered=False)
-#     covars = thestudy.covariates()#
-#     #covars['Dev_Acc'] = thestudy.outcomes['Dev_Acc'].values
-#     print(covars)

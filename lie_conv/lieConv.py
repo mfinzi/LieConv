@@ -171,8 +171,6 @@ class GlobalPool(nn.Module):
         summed = torch.where(mask.unsqueeze(-1),vals,torch.zeros_like(vals)).sum(1)
         if self.mean:
             summed /= mask.sum(-1).unsqueeze(-1)
-        #print(torch.isnan(summed).sum())
-        #print(mask.sum(-1)[0])
         return summed
 
 @export
@@ -193,22 +191,6 @@ def WeightNet(in_dim,out_dim,act,bn,k=32):
         *LinearBNact(in_dim, k, act, bn),
         *LinearBNact(k, k, act, bn),
         *LinearBNact(k, out_dim, act, bn))
-
-# def denan(x):
-#     """ replace nans in x with 0s"""
-#     return torch.where(torch.isnan(x),torch.zeros_like(x),x)
-
-# def renan(x,y):
-#     """ introduce nans in x where they occur in y (assuming the same for each ch),
-#         also divide by the number of non nans if mean=True"""
-#     nans_like_x = torch.isnan(y[...,:1]).expand(*x.shape)
-#     #print(f"numnan: {torch.isnan(y[0,...,0]).sum()}")
-#     #print(f"unintentional xnans {torch.isnan(x[0,...,0]).sum()}")
-#     #print(f"sums: {sums[0,:,0]}")
-#     x_with_nans = torch.where(nans_like_x,torch.zeros_like(x)/0,x)
-#     #print(f"sums after: {(~torch.isnan(x_with_nans[0,...,0])).sum()}")
-#     #if mean: x_with_nans = x_with_nans / 
-#     return x_with_nans
 
 class PointConv(nn.Module):
     def __init__(self,chin,chout,nbhd=32,xyz_dim=3,ds_frac=1,knn_channels=None,act='swish',bn=False,mean=False):
@@ -262,30 +244,6 @@ class PointConv(nn.Module):
         convolved_wzeros = torch.where(sub_mask.unsqueeze(-1),convolved_vals,torch.zeros_like(convolved_vals))
         return query_xyz, convolved_wzeros, sub_mask
 
-
-# class GroupPointConv(PointConvBase):
-#     def __init__(self,*args,group=SE2,**kwargs):
-#         kwargs.pop('xyz_dim')
-#         self.group = group
-#         super().__init__(*args,xyz_dim=group.embed_dim,**kwargs)
-        
-#     def extract_neighborhood(self,inp_a,inp_vals,query_a):
-#         neighbor_idx = knn_point(min(self.nbhd,inp_a.shape[1]),inp_a[:,:,:self.knn_channels],
-#                     query_a[:,:,:self.knn_channels],self.group.distance)#self.neighbor_lookup[key]
-#         #print(inp_a.shape)
-#         #print(neighbor_idx.shape)
-#         nidx = neighbor_idx.cpu().data.numpy()
-#         neighbor_a = index_points(inp_a, neighbor_idx) # [B, npoint, nsample, C]
-#         nidx2 = neighbor_idx.cpu().data.numpy()
-#         neighbor_values = index_points(inp_vals, neighbor_idx)
-#         #print('neighbor_a',neighbor_a.shape)
-#         return neighbor_a, neighbor_values # (bs,n,nbhd,c)
-#     def get_embedded_group_elems(self,output_a,nbhd_a):
-#         #print(output_a.shape)
-#         #print(nbhd_a.shape)
-#         return self.group.BCH(output_a,-nbhd_a)
-
-
 class LieConv(PointConv):
     def __init__(self,*args,group=SE3,ds_frac=1,fill=1/3,cache=False,knn=False,**kwargs):
         kwargs.pop('xyz_dim',None)
@@ -303,7 +261,6 @@ class LieConv(PointConv):
             outputs: [neighbor_ab (bs,m,nbhd,d), neighbor_vals (bs,m,nbhd,c)]"""
         
         pairs_ab, inp_vals, mask = inp
-        #print(inp_vals[mask].sum())
         if query_indices is not None:
             B = torch.arange(inp_vals.shape[0],device=inp_vals.device).long()[:,None]
             ab_at_query = pairs_ab[B,query_indices]
@@ -312,69 +269,37 @@ class LieConv(PointConv):
             ab_at_query = pairs_ab
             mask_at_query = mask
         vals_at_query = inp_vals
-        #print(vals_at_query[mask].sum())
         dists = self.group.distance(ab_at_query) #(bs,m,n,d) -> (bs,m,n)
         dists = torch.where(mask[:,None,:].expand(*dists.shape),dists,1e8*torch.ones_like(dists))
-        #dists[~mask[:,None,:].expand(*dists.shape)] = 1e8
-        #print((dists<1e7).float().sum()/(mask_at_query[:,None,:].expand(*dists.shape).sum()))
-        #print(dists[mask_at_query].sum())
-        #print(dists[mask_at_query].sum())
         k = min(self.nbhd,inp_vals.shape[1])
         # NBHD: Subsampling within the ball
         bs,m,n = dists.shape
-        #print(dists.shape)
-        if self.knn:
+        if self.knn: # NBHD: KNN
             nbhd_idx = torch.topk(dists,k,dim=-1,largest=False,sorted=False)[1] #(bs,m,nbhd)
             valid_within_ball = (nbhd_idx>-1)&mask[:,None,:]&mask_at_query[:,:,None]
             assert not torch.any(nbhd_idx>dists.shape[-1]), f"error with topk,\
                         nbhd{k} nans|inf{torch.any(torch.isnan(dists)|torch.isinf(dists))}"
-        else:
-            #print(((mask[:,None,:]&mask[:,:,None]).sum().float()/(bs)).sqrt())
+        else: # NBHD: Sampled Distance Ball
             within_ball = (dists < self.r)&mask[:,None,:]&mask_at_query[:,:,None] # (bs,m,n)
-            #navg = within_ball.sum().float()/mask_at_query.sum().float()
-
-            #print(f'average_number_within_ball({self.r}) of max {n}, {navg}')
-            #print((dists*(mask[:,None,:]&mask[:,:,None]).float()).sum()/(mask[:,None,:]&mask[:,:,None]).float().sum())
-            #print(within_ball.sum().float()/mask[:,:,None].sum())#(mask[:,None,:]&mask[:,:,None]).float().sum())
-            #rand_perm = torch.rand(bs,m,n).argsort(dim=-1) # (bs,m,n)
-            #rand_perm = torch.cat([torch.randperm(n)[None, :] for _ in range(bs * m)], dim=0).reshape(bs,m,n)
-            #inverse_perm_indices = rand_perm.argsort(dim=-1) # (bs,m,n)
             B = torch.arange(bs)[:,None,None]#.expand(*random_perm.shape)
             M = torch.arange(m)[None,:,None]#.expand(*random_perm.shape)
-            #permed_within_ball = within_ball[B.expand(*rand_perm.shape),M.expand(*rand_perm.shape),rand_perm]
+
             noise = torch.zeros(bs,m,n,device=within_ball.device)
             noise.uniform_(0,1)
             valid_within_ball, nbhd_idx =torch.topk(within_ball+noise,k,dim=-1,largest=True,sorted=False)
             valid_within_ball = (valid_within_ball>1)
-            # #nbhd_idx = rand_perm[B.expand(*permed_nbhd_idx.shape),M.expand(*permed_nbhd_idx.shape),permed_nbhd_idx]
-            # nbhd_idx = permed_nbhd_idx
-            # #print(valid_within_ball)
-            # #randidx = torch.randint(0, n, (bs,m,k), dtype=torch.long) #choose random start
-            # #inverse_permutation_indexes = torch.empty_like(permutation_indexes).scatter_(dim=1, index=permutation_indexes, src=y)
-            # #B = torch.arange(bs, dtype=torch.long).to(device)
-        # NBHD: KNN
-        #nbhd_idx = torch.topk(dists,k,dim=-1,largest=False,sorted=False)[1] #(bs,m,nbhd)
-
-        #print(nbhd_idx[mask_at_query].sum())
-        #print("nbhd idx", nbhd_idx.shape)
         
         B = torch.arange(inp_vals.shape[0],device=inp_vals.device).long()[:,None,None].expand(*nbhd_idx.shape)
         M = torch.arange(ab_at_query.shape[1],device=inp_vals.device).long()[None,:,None].expand(*nbhd_idx.shape)
         nbhd_ab = ab_at_query[B,M,nbhd_idx]  #(bs,m,n,d) -> (bs,m,nbhd,d)
         nbhd_vals = vals_at_query[B,nbhd_idx]#(bs,n,c) -> (bs,m,nbhd,c)
         nbhd_mask = mask[B,nbhd_idx]         #(bs,n) -> (bs,m,nbhd)
-        #print("mask mean",mask.float().sum(-1).mean())
-        #print("average number of valid neighborhood points per real atom",
-        #(nbhd_mask*valid_within_ball.float()).sum(-1).sum()/mask_at_query[:,:,None].sum())
         navg = (within_ball.float()).sum(-1).sum()/mask_at_query[:,:,None].sum()
         if self.training:
             avg_fill = (navg/mask.sum(-1).float().mean()).cpu().item()
             self.r +=  self.coeff*(self.fill_frac - avg_fill)#self.fill_frac*n/navg.cpu().item()-1)
             self.fill_frac_ema += .1*(avg_fill-self.fill_frac_ema)
-        #print(nbhd_vals.shape)
-        #print(nbhd_vals[nbhd_mask].sum())
-        #assert False
-        return nbhd_ab, nbhd_vals, nbhd_mask#(nbhd_mask&valid_within_ball.bool())
+        return nbhd_ab, nbhd_vals, nbhd_mask#(nbhd_mask&valid_within_ball.bool())W
     # def log_data(self,logger,step,name):
     #     logger.add_scalars('info', {f'{name}_fill':self.fill_frac_ema}, step=step)
     #     logger.add_scalars('info', {f'{name}_R':self.r}, step=step)
@@ -520,9 +445,8 @@ class LieResNet(nn.Module,metaclass=Named):
             *[BottleBlock(k[i],k[i+1],conv,bn=bn,act=act,fill=fill[i]) for i in range(num_layers)],
             Pass(nn.Linear(k[-1],k[-1]//2),dim=1),
             Pass(Swish() if act=='swish' else nn.ReLU(),dim=1),
-            #Pass(nn.Linear(k[-1]//2,num_outputs),dim=1),
+            Pass(nn.Linear(k[-1]//2,num_outputs),dim=1),
             GlobalPool(mean=mean) if pool else Expression(lambda x: x[1]),
-            nn.Linear(k[-1]//2,num_outputs)
             )
         self.liftsamples = liftsamples
         self.per_point=per_point
@@ -585,161 +509,7 @@ class Pass(nn.Module):
         return xs
 
 
-# @export
-# class pBottleneck(nn.Module):
-#     def __init__(self,in_channels,out_channels,nbhd=3.66**2,ds_frac=0.5,drop_rate=0,r=4,gn=False,**kwargs):
-#         super().__init__()
-#         self.in_channels = in_channels
-#         self.out_channels = out_channels
-#         norm_layer = nn.BatchNorm1d
-#         self.pointconv = PointConv(in_channels//r,out_channels,nbhd=nbhd,ds_frac=ds_frac,**kwargs)
-#         self.net = nn.Sequential(
-#             Pass(norm_layer(in_channels)),
-#             Pass(Swish() if act=='swish' else nn.ReLU()),
-#             Pass(nn.Conv1d(in_channels,in_channels//r,1)),
-#             Pass(norm_layer(in_channels//r)),
-#             Pass(Swish() if act=='swish' else nn.ReLU()),
-#             self.pointconv,
-#             #Pass(norm_layer(out_channels)),
-#             #Pass(nn.ReLU()),
-#             #Pass(nn.Conv1d(out_channels,out_channels,1)),
-#         )
 
-#     def forward(self,x):
-#         #coords,values = x
-#         #print(values.shape)
-#         new_coords,new_values  = self.net(x)
-#         new_values[:,:self.in_channels] += self.pointconv.subsample(x)[1] # subsampled old values
-#         #print(shortcut.shape)
-#         #print(new_coords.shape,new_values.shape)
-#         return new_coords,new_values
-
-
-
-# def imagelike_nn_downsample(x,coords_only=False):
-#     coords,values = x
-#     bs,c,N = values.shape
-#     h = w = int(np.sqrt(N))
-#     ds_coords = torch.nn.functional.interpolate(coords.view(bs,2,h,w),scale_factor=0.5)
-#     ds_values = torch.nn.functional.interpolate(values.view(bs,c,h,w),scale_factor=0.5)
-#     if coords_only: return ds_coords.view(bs,2,-1)
-#     return ds_coords.view(bs,2,-1), ds_values.view(bs,c,-1)
-
-# def concat_coords(x):
-#     bs,c,h,w = x.shape
-#     coords = torch.stack(torch.meshgrid([torch.linspace(-1,1,h),torch.linspace(-1,1,w)]),dim=-1).view(h*w,2).unsqueeze(0).permute(0,2,1).repeat(bs,1,1).to(x.device)
-#     inp_as_points = x.view(bs,c,h*w)
-#     return (coords,inp_as_points)
-# def uncat_coords(x):
-#     bs,c,n = x[1].shape
-#     h = w = int(np.sqrt(n))
-#     return x[1].view(bs,c,h,w)
-
-# @export
-# def imgpConvBNrelu(in_channels,out_channels,**kwargs):
-#     return nn.Sequential(
-#         Expression(concat_coords),
-#         PointConv(in_channels,out_channels,**kwargs),
-#         Expression(uncat_coords),
-#         nn.BatchNorm2d(out_channels),
-#         nn.ReLU(),
-#     )
-
-# @export
-# class pResBlock(nn.Module):
-#     def __init__(self,in_channels,out_channels,drop_rate=0,stride=1,nbhd=3**2,xyz_dim=2):
-#         super().__init__()
-#         self.in_channels = in_channels
-#         self.out_channels = out_channels
-#         if xyz_dim==2:
-#             ds = 1 if stride==1 else imagelike_nn_downsample#
-#         elif xyz_dim==3:
-#             ds = 1 if stride==1 else .25
-            
-#         self.net = nn.Sequential(
-#             Pass(nn.BatchNorm1d(in_channels)),
-#             Pass(nn.ReLU()),
-#             PointConv(in_channels,out_channels,nbhd=nbhd,
-#             ds_frac=1 if xyz_dim==2 else np.sqrt(ds),xyz_dim=xyz_dim),
-#             Pass(nn.Dropout(p=drop_rate)),
-#             Pass(nn.BatchNorm1d(out_channels)),
-#             Pass(nn.ReLU()),
-#             PointConv(out_channels,out_channels,nbhd=nbhd,
-#             ds_frac=ds if xyz_dim==2 else np.sqrt(ds),xyz_dim=xyz_dim),
-#         )
-#         self.shortcut = nn.Sequential()
-#         if in_channels!=out_channels:
-#             self.shortcut.add_module('conv',Pass(nn.Conv1d(in_channels,out_channels,1)))
-#         if stride!=1:
-#             if xyz_dim==2:
-#                 self.shortcut.add_module('ds',Expression(lambda a: imagelike_nn_downsample(a)))
-#             elif xyz_dim==3:
-#                 self.shortcut.add_module('ds',FarthestSubsample(ds_frac=ds))
-
-#     def forward(self,x):
-#         res_coords,res_values = self.net(x)
-#         skip_coords,skip_values = self.shortcut(x)
-#         return res_coords,res_values+skip_values
-
-
-
-
-
-
-# @export
-# class LearnedSubsample(nn.Module):
-#     def __init__(self,ds_frac=0.5,nbhd=24,knn_channels=None,xyz_dim=3,chin=64,**kwargs):
-#         super().__init__()
-#         self.ds_frac = ds_frac
-#         self.knn_channels = knn_channels
-#         self.mapping = PointConvBase(chin,xyz_dim,nbhd,xyz_dim,knn_channels,**kwargs)
-#     def forward(self,x,coords_only=False):
-#         # BCN representation assumed
-#         coords,values = x
-#         if self.ds_frac==1:
-#             if coords_only: return coords
-#             else: return x
-#         coords = coords
-#         values = values
-#         num_downsampled_points = int(np.round(coords.shape[1]*self.ds_frac))
-#         #key = pthash(coords[:,:,:self.knn_channels])
-#         #if key not in self.subsample_lookup:# or True:
-#             #print("Cache miss")
-#         #    self.subsample_lookup[key] = farthest_point_sample(coords, num_downsampled_points)
-#         fps_idx = farthest_point_sample(coords, num_downsampled_points)#self.subsample_lookup[key]
-
-#         new_coords = index_points(coords,fps_idx)
-#         new_values = index_points(values,fps_idx)
-#         self.inp_coords = new_coords[0].cpu().data.numpy()
-#         #print(new_values.shape,new_coords.shape)
-#         offset = .03*self.mapping(x,new_coords)
-#         self.offset = offset[0].cpu().data.numpy()
-#         new_coords = new_coords + offset
-#         self.out_coords = new_coords[0].cpu().data.numpy()
-#         if coords_only: return new_coords
-        
-#         return new_coords,new_values
-    # def log_data(self,logger,step,name):
-    #     #print("log_data called")
-    #     fig = plt.figure()
-    #     ax = plt.axes(projection='3d')
-    #     x,y,z = self.inp_coords.T
-    #     dx,dy,dz = self.offset.T
-    #     ax.cla()
-    #     ax.scatter(x,y,z,c=z)
-    #     ax.quiver(x,y,z,dx,dy,dz)#,length = mag)
-    #     #ax.scatter(xp,yp,zp,c=zp)
-    #     fig.canvas.draw()
-    #     plt.show()
-
-
-# class CoordinatePointConv(PointConvBase):
-#     def __init__(self,*args,coordmap=Coordinates(),**kwargs):
-#         super().__init__(*args,**kwargs)
-#         self.coordmap = coordmap
-#         self.net = WeightNet(self.xyz_dim+self.coordmap.embed_dim, self.cicm_co,hidden_unit = (32, 32))
-#     def get_embedded_group_elems(self,nbhd_xyz,output_xyz):
-#         return self.coordmap(nbhd_xyz) - self.coordmap(output_xyz)
 
 
 
