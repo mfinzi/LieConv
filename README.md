@@ -1,3 +1,4 @@
+[![Code Climate maintainability](https://img.shields.io/codeclimate/maintainability-percentage/mfinzi/LieConv)](https://codeclimate.com/github/mfinzi/LieConv)
 # Generalizing Convolutional Neural Networks for Equivarianceto Lie Groups on Arbitrary Continuous Data
 This repo contains the implementation and the experiments for the paper 
 _Generalizing Convolutional Neural Networks for Equivariance to Lie Groups_ by Marc Finzi, Samuel Stanton, Pavel Izmailov, and Andrew Gordon Wilson.
