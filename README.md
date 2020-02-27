@@ -102,7 +102,7 @@ Using the commands above we obtain the following test errors (%) for the differe
 |---------|------|------|-------|------|
 | 1.57    | 1.50 | 1.40 | 1.33  | 1.39 |
 
-For the curious minded, we have added 5 additional groups Scaling:`Rx(2)`, Squeeze transformations `SQ()`,Scaling and Squeezes `RxSQ()`, Translation in x only `Tx(2)`, and Translation in y only`Ty(2)`.
+For the curious minded, we have added 5 additional groups Scaling:`Rx(2)`, Squeeze transformations:`SQ()`, Scaling and Squeezes:`RxSQ()`, Translation in x only:`Tx(2)`, and Translation in y only:`Ty(2)`.
 
 ## Spring Dynamics Experiments
 We apply our method in the modeling of a multi particle spring system, an example of a Hamiltonian system that conserves linear and angular momentum. To train using the HLieResNet model, simply run
