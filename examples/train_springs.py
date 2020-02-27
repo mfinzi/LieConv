@@ -7,9 +7,10 @@ from torch.optim import Adam
 from oil.utils.utils import LoaderTo, islice, FixedNumpySeed, cosLr
 from lie_conv.datasets import SpringDynamics
 from lie_conv import datasets
-from lie_conv.dynamicsTrainer import IntegratedDynamicsTrainer, FC
+from lie_conv.dynamicsTrainer import IntegratedDynamicsTrainer, FC, HLieResNet
 
 import lie_conv.lieGroups as lieGroups
+from lie_conv.lieGroups import Tx
 from lie_conv import dynamicsTrainer
 from lie_conv.dynamics_trial import DynamicsTrial
 try:
@@ -50,5 +51,7 @@ def makeTrainer(*,network=FC,net_cfg={},lr=1e-2,n_train=3000,regen=False,dataset
 Trial = DynamicsTrial(makeTrainer)
 if __name__=='__main__':
     defaults = copy.deepcopy(makeTrainer.__kwdefaults__)
+    #defaults.update({'network':HLieResNet,'net_cfg':{'group':Tx(2),'k':384,'num_layers':4},'lr':1e-3})
     #defaults['early_stop_metric']='val_MSE'
+    #Trial(defaults)
     print(Trial(argupdated_config(defaults,namespace=(dynamicsTrainer,lieGroups,datasets,graphnets))))
