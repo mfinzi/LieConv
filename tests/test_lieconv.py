@@ -5,7 +5,7 @@ from moleculeTrainer import MolecResNet
 from oil.utils.utils import LoaderTo
 from corm_data.collate import collate_fn
 from torch.utils.data import DataLoader
-from liegroups import norm, SO3
+from lie_conv.lieGroups import norm, SO3
 import unittest
 import numpy as np
 

@@ -4,8 +4,8 @@ import scipy as sp
 import scipy.linalg
 import unittest
 
-from liegroups import SO3,SE3,SE2,SO2
-test_groups = [SO2(1),SO3(1),SE3(1)]
+from lie_conv.lieGroups import SO3,SE3,SE2,SO2
+test_groups = [SO2(),SO3(),SE3()]
 class TestGroups(unittest.TestCase):
     def test_exp_correct(self,num_trials=3,tol=1e-4):
         for group in test_groups:

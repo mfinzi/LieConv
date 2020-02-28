@@ -31,26 +31,17 @@ class IntegratedDynamicsTrainer(Trainer):
         self.traj_data = traj_data
         self.ckpt = (-1, copy.deepcopy(self.model.state_dict()))
 
-    def _rollout_model(self, model, z0, ts, sys_params):
-        """Parameters
-        ----------
-        model: torch.nn.Module
-        z0: torch.Tensor, [batch_size, z_dim]
-        ts: [batch_size, traj_len]
-        sys_params: [batch_size, param_dim, num_params]
-
-        Returns
-        -------
-        pred_zs: torch.Tensor, [batch_size, traj_len, z_dim]"""
-        dynamics = Partial(model, sysP=sys_params)
+    def _rollout_model(self, z0, ts, sys_params):
+        """ inputs [z0: (bs, z_dim), ts: (bs, T), sys_params: (bs, n, c)]
+            outputs pred_zs: (bs, T, z_dim) """
+        dynamics = Partial(self.model, sysP=sys_params)
         zs = odeint(dynamics, z0, ts[0], rtol=self.hypers['tol'], method='rk4')
         return zs.permute(1, 0, 2)
 
-    def loss(self, minibatch, model=None):
+    def loss(self, minibatch):
         """ Standard cross-entropy loss """
         (z0, sys_params, ts), true_zs = minibatch
-        model = self.model if model is None else model
-        pred_zs = self._rollout_model(model, z0, ts, sys_params)
+        pred_zs = self._rollout_model(z0, ts, sys_params)
         self.num_mbs += 1
         return (pred_zs - true_zs).pow(2).mean()
 
@@ -59,7 +50,7 @@ class IntegratedDynamicsTrainer(Trainer):
         ts, true_zs, sys_params = self.traj_data
         z0 = true_zs[:, 0]
         with Eval(self.model), torch.no_grad():
-            pred_zs = self._rollout_model(self.model, z0, ts, sys_params)
+            pred_zs = self._rollout_model(z0, ts, sys_params)
         return (pred_zs - true_zs).pow(2).mean().item()
 
     def metrics(self, loader):
@@ -73,48 +64,32 @@ class IntegratedDynamicsTrainer(Trainer):
         if not idx == self.ckpt[0]:
             self.ckpt = (idx, copy.deepcopy(self.model.state_dict()))
 
-        
-# class pConvLNswish(nn.Module):
-#     def __init__(self,in_channels,out_channels,**kwargs):
-#         super().__init__()
-#         self.in_channels=in_channels
-#         self.out_channels = out_channels
-#         self.pconv = PointConv(in_channels,out_channels,**kwargs)
-#         self.norm = MaskBatchNormNd(out_channels)
-#     def forward(self,inp):
-#         xyz,vals = self.pconv(inp)
-#         if True: return xyz,vals # shortcut and ignore layernorm for now
-#         bnc_vals = vals#.permute(0,2,1)
-#         normed_vals = self.norm(bnc_vals)#.view(-1,self.out_channels))
-#         return xyz,normed_vals#.view(*bnc_vals.shape)#.permute(0,2,1)
 def logspace(a,b,k):
     return np.exp(np.linspace(np.log(a),np.log(b),k))
 
+def FCswish(chin,chout):
+    return nn.Sequential(nn.Linear(chin,chout),Swish())
+
 @export
-class LieConvNetT2(nn.Module,metaclass=Named):
-    """
-    pointconvnet to model the potential function
-    """
-    def __init__(self, num_targets=1,k=64,num_layers=3,sys_dim=2,bn=False,**kwargs):
+class FC(nn.Module,metaclass=Named):
+    def __init__(self, d=2,k=300,num_layers=4,sys_dim=2,**kwargs):
         super().__init__()
-        assert num_targets <=1, "regression problem"
-        chs = np.round(logspace(k,4*k,num_layers+1)).astype(int)
-        chs[0] = sys_dim
+        num_particles=6
+        chs = [num_particles*(2*d+sys_dim)]+num_layers*[k]
         self.net = nn.Sequential(
-            *[pConvBNrelu(chs[i],chs[i+1],ds_frac=1,nbhd=np.inf,act='swish',bn=bn,
-                                xyz_dim=2,**kwargs) for i in range(num_layers)],
-            Expression(lambda u:u[1].mean(1)),
-            nn.Linear(chs[-1],num_targets)
+            *[FCswish(chs[i],chs[i+1]) for i in range(num_layers)],
+            nn.Linear(chs[-1],2*d*num_particles)
         )
         self.nfe=0
-    def compute_V(self,x):
-        """ Input is a canonical position variable and the system parameters,
-            shapes (bs, n,d) and (bs,n,c)"""
-        q,sys_params = x
-        mask = ~torch.isnan(q[...,0])
-        v = self.net((q,sys_params,mask)).squeeze(-1)
-        return v
+    def forward(self,t,z,sysP,wgrad=True):
+        m = sysP[...,0]
+        D = z.shape[-1]
+        q = z[:,:D//2].reshape(*m.shape,-1)
+        p = z[:,D//2:]
+        zm = torch.cat(((q - q.mean(1,keepdims=True)).reshape(z.shape[0],-1),p,sysP.reshape(z.shape[0],-1)),dim=1)
+        return self.net(zm)
 
+class HNet(nn.Module,metaclass=Named): # abstract Hamiltonian network class
     def compute_H(self,z,sys_params):
         """ computes the hamiltonian, inputs (bs,2nd), (bs,n,c)"""
         m = sys_params[...,0] # assume the first component encodes masses
@@ -125,34 +100,29 @@ class LieConvNetT2(nn.Module,metaclass=Named):
         T=EuclideanK(p,m)
         V =self.compute_V((q,sys_params))
         return T+V
-    
     def forward(self,t,z,sysP,wgrad=True):
         dynamics = HamiltonianDynamics(lambda t,z: self.compute_H(z,sysP),wgrad=wgrad)
         return dynamics(t,z)
 
-
 @export
-class LieResNetT2(LieConvNetT2):
-    """
-    pointconvnet to model the potential function
-    """
-    def __init__(self, num_targets=1,k=1024,num_layers=3, d=2, sys_dim=2,bn=False):
+class HFC(HNet):
+    def __init__(self, num_targets=1,k=150,num_layers=4,sys_dim=2, d=2):
         super().__init__()
-        assert num_targets <=1, "regression problem"
-        conv = lambda chin,chout: PointConv(chin, chout, nbhd=np.inf, ds_frac=1, bn=bn, 
-                                   act='swish', mean=False, xyz_dim=d)
+        num_particles=6
+        chs = [num_particles*(d+sys_dim)]+num_layers*[k]
         self.net = nn.Sequential(
-            Pass(nn.Linear(sys_dim,k),dim=1), #embedding layer
-            *[BottleBlock(k,k,conv,bn=bn,act='swish')
-                                for _ in range(num_layers)],
-            Pass(nn.Linear(k,k//2),dim=1),
-            Pass(Swish(),dim=1),  
-            GlobalPool(mean=True),#mean), 
-            nn.Linear(k//2,num_targets)
+            *[FCswish(chs[i],chs[i+1]) for i in range(num_layers)],
+            nn.Linear(chs[-1],num_targets)
         )
+    def compute_V(self,x):
+        """ Input is a canonical position variable and the system parameters,
+            shapes (bs, n,d) and (bs,n,c)"""
+        q,sys_params = x
+        mean_subbed = (q-q.mean(1,keepdims=True),sys_params)
+        return self.net(torch.cat(mean_subbed,dim=-1).reshape(q.shape[0],-1)).squeeze(-1)
 
 @export
-class HLieResNet(LieResNet):
+class HLieResNet(LieResNet,HNet):
     def __init__(self,d=2,sys_dim=2,bn=False,num_layers=4,group=T(2),k=384,knn=False,nbhd=100,mean=True,center=True,**kwargs):
         super().__init__(chin=sys_dim,ds_frac=1,num_layers=num_layers,nbhd=nbhd,mean=mean,bn=bn,xyz_dim=d,
                         group=group,fill=1.,k=k,num_outputs=1,cache=True,knn=knn,**kwargs)
@@ -163,29 +133,11 @@ class HLieResNet(LieResNet):
             shapes (bs, n,d) and (bs,n,c)"""
         q,sys_params = x
         mask = ~torch.isnan(q[...,0])
-        v = super().forward((q,sys_params,mask)).squeeze(-1)
-        return v
-
-    def compute_H(self,z,sys_params):
-        """ computes the hamiltonian, inputs (bs,2nd), (bs,n,c)"""
-        m = sys_params[...,0] # assume the first component encodes masses
-        #print("in H",z.shape,sys_params.shape)
-        D = z.shape[-1] # of ODE dims, 2*num_particles*space_dim
-        q = z[:,:D//2].reshape(*m.shape,-1)
-        p = z[:,D//2:].reshape(*m.shape,-1)
-        if self.center: q = q-q.mean(1,keepdims=True)#(m.unsqueeze(-1)*q).sum(dim=1,keepdims=True)/m.sum(1,keepdims=True).unsqueeze(-1)
-        
-        T=EuclideanK(p,m)
-        V =self.compute_V((q,sys_params))
-        return T+V
-    
-    def forward(self,t,z,sysP,wgrad=True):
-        dynamics = HamiltonianDynamics(lambda t,z: self.compute_H(z,sysP),wgrad=wgrad)
-        return dynamics(t,z)
-
+        if self.center: q = q-q.mean(1,keepdims=True)
+        return super().forward((q,sys_params,mask)).squeeze(-1)
 
 @export
-class FLieResnet(LieResNet):
+class FLieResnet(LieResNet): # An (equivariant) lieConv network that models the dynamics directly
     def __init__(self,d=2,sys_dim=2,bn=False,num_layers=4,group=T(2),k=384,knn=False,nbhd=100,mean=True,**kwargs):
         super().__init__(chin=sys_dim+d,ds_frac=1,num_layers=num_layers,nbhd=nbhd,mean=mean,bn=bn,xyz_dim=d,
                         group=group,fill=1.,k=k,num_outputs=2*d,cache=True,knn=knn,pool=False,**kwargs)
@@ -210,45 +162,5 @@ class FLieResnet(LieResNet):
 
 
 
-def FCswish(chin,chout):
-    return nn.Sequential(nn.Linear(chin,chout),Swish())
 
-@export
-class FCHamNet(LieConvNetT2):
-    def __init__(self, num_targets=1,k=150,num_layers=4,sys_dim=2, d=2):
-        super().__init__()
-        num_particles=6
-        chs = [num_particles*(d+sys_dim)]+num_layers*[k]
-        self.net = nn.Sequential(
-            *[FCswish(chs[i],chs[i+1]) for i in range(num_layers)],
-            nn.Linear(chs[-1],num_targets)
-        )
-    def compute_V(self,x):
-        q,sys_params = x
-        mean_subbed = (q-q.mean(1,keepdims=True),sys_params)
-        return self.net(torch.cat(mean_subbed,dim=-1).reshape(q.shape[0],-1)).squeeze(-1)
 
-@export
-class HFC(FCHamNet): pass
-
-@export
-class RawDynamicsNet(nn.Module,metaclass=Named):
-    def __init__(self, d=2,k=300,num_layers=4,sys_dim=2,**kwargs):
-        super().__init__()
-        num_particles=6
-        chs = [num_particles*(2*d+sys_dim)]+num_layers*[k]
-        self.net = nn.Sequential(
-            *[FCswish(chs[i],chs[i+1]) for i in range(num_layers)],
-            nn.Linear(chs[-1],2*d*num_particles)
-        )
-        self.nfe=0
-    def forward(self,t,z,sysP,wgrad=True):
-        m = sysP[...,0]
-        D = z.shape[-1]
-        q = z[:,:D//2].reshape(*m.shape,-1)
-        p = z[:,D//2:]
-        zm = torch.cat(((q - q.mean(1,keepdims=True)).reshape(z.shape[0],-1),p,sysP.reshape(z.shape[0],-1)),dim=1)
-        return self.net(zm)
-
-@export
-class FC(RawDynamicsNet): pass

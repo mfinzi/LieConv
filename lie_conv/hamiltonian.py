@@ -15,7 +15,6 @@ class HamiltonianDynamics(nn.Module):
         self.nfe+=1
         with torch.enable_grad():
             z = torch.zeros_like(z, requires_grad=True) + z
-            # z.requires_grad = True
             D = z.shape[-1]
             h = self.H(t,z).sum() # elements in mb are independent, gives mb gradients
             rg = torch.autograd.grad(h,z,create_graph=self.wgrad)[0] # riemannian gradient
