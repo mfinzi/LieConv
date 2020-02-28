@@ -443,9 +443,10 @@ class LieResNet(nn.Module,metaclass=Named):
         self.net = nn.Sequential(
             Pass(nn.Linear(chin,k[0]),dim=1), #embedding layer
             *[BottleBlock(k[i],k[i+1],conv,bn=bn,act=act,fill=fill[i]) for i in range(num_layers)],
-            Pass(nn.Linear(k[-1],k[-1]//2),dim=1),
+            #Pass(nn.Linear(k[-1],k[-1]//2),dim=1),
+            MaskBatchNormNd(k[-1]) if bn else nn.Sequential(),
             Pass(Swish() if act=='swish' else nn.ReLU(),dim=1),
-            Pass(nn.Linear(k[-1]//2,num_outputs),dim=1),
+            Pass(nn.Linear(k[-1],num_outputs),dim=1),
             GlobalPool(mean=mean) if pool else Expression(lambda x: x[1]),
             )
         self.liftsamples = liftsamples
