@@ -4,6 +4,7 @@ from torch.optim import Adam
 from oil.utils.utils import LoaderTo, islice, cosLr
 from oil.tuning.args import argupdated_config
 from oil.tuning.study import train_trial
+from oil.utils.parallel import try_multigpu_parallelize
 from lie_conv.datasets import QM9datasets
 from corm_data.collate import collate_fn
 from lie_conv.moleculeTrainer import MolecResNet, MoleculeTrainer
@@ -30,6 +31,7 @@ def makeTrainer(*, task='homo', device='cuda', lr=1e-2, bs=100, num_epochs=500,
         for ds in datasets.values():
             ds.data['positions'] = (ds.data['positions']-mean[None,None,:])/std
     model = network(num_species,charge_scale,**net_config).to(device)
+    model,bs = try_multigpu_parallelize(model,bs)
     # Create train and Val(Test) dataloaders and move elems to gpu
     dataloaders = {key:LoaderTo(DataLoader(dataset,batch_size=bs,num_workers=0,
                     shuffle=(key=='train'),pin_memory=True,collate_fn=collate_fn,drop_last=True),
