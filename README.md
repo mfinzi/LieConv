@@ -37,7 +37,7 @@ Dependencies will be automatically installed from the setup.py file with `pip in
 * Python 3.7+
 * [PyTorch](http://pytorch.org/) 1.3.0+
 * [torchvision](https://github.com/pytorch/vision/)
-* [snake-oil-ml](https://github.com/mfinzi/snake-oil-ml)
+* [olive-oil-ml](https://github.com/mfinzi/olive-oil-ml)
 * [torchdiffeq](https://github.com/rtqichen/torchdiffeq)
 * (optional) [torch-scatter,torch-sparse,torch-cluster,torch-geometric]
 * (optional) [tensorboardX](https://github.com/lanpa/tensorboardX)
