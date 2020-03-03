@@ -1,6 +1,7 @@
 import copy, warnings
 from oil.tuning.args import argupdated_config
 from oil.datasetup.datasets import split_dataset
+from oil.tuning.study import train_trial
 import torch
 from torch.utils.data import DataLoader
 from torch.optim import Adam
@@ -12,7 +13,7 @@ from lie_conv.dynamicsTrainer import IntegratedDynamicsTrainer, FC, HLieResNet
 import lie_conv.lieGroups as lieGroups
 from lie_conv.lieGroups import Tx
 from lie_conv import dynamicsTrainer
-from lie_conv.dynamics_trial import DynamicsTrial
+#from lie_conv.dynamics_trial import DynamicsTrial
 try:
     import lie_conv.graphnets as graphnets
 except ImportError:
@@ -39,19 +40,9 @@ def makeTrainer(*,network=FC,net_cfg={},lr=1e-2,n_train=3000,regen=False,dataset
     return IntegratedDynamicsTrainer(model,dataloaders,opt_constr,lr_sched,
                                     log_args={'timeFrac':1/4,'minPeriod':0.0},**trainer_config)
 
-# best_hypers = {
-#     LieResNetT2: {'net_cfg':{'k':384, 'num_layers':4},'lr':1e-3},
-#     VOGN: {'net_cfg':{'k':512},'lr':3e-3},
-#     HOGN: {'net_cfg':{'k':256},'lr':1e-2},
-#     OGN: {'net_cfg':{'k':256},'lr':1e-2},
-#     FCHamNet: {'net_cfg':{'k':256,'num_layers':4},'lr':1e-2},
-#     RawDynamicsNet: {'net_cfg':{'k':256},'lr':3e-3},
-# }
-
-Trial = DynamicsTrial(makeTrainer)
+Trial = train_trial(makeTrainer)
 if __name__=='__main__':
     defaults = copy.deepcopy(makeTrainer.__kwdefaults__)
-    #defaults.update({'network':HLieResNet,'net_cfg':{'group':Tx(2),'k':384,'num_layers':4},'lr':1e-3})
-    #defaults['early_stop_metric']='val_MSE'
-    #Trial(defaults)
+    defaults['save']=False
+    defaults['trainer_config']['early_stop_metric']='val_MSE'
     print(Trial(argupdated_config(defaults,namespace=(dynamicsTrainer,lieGroups,datasets,graphnets))))

@@ -24,12 +24,10 @@ class Partial(nn.Module):
 @export
 class IntegratedDynamicsTrainer(Trainer):
     """ Model should specify the dynamics, mapping from t,z,sysP -> dz/dt"""
-    def __init__(self, *args, traj_data=None, tol=1e-4, **kwargs):
+    def __init__(self, *args, tol=1e-4, **kwargs):
         super().__init__(*args,**kwargs)
         self.hypers['tol'] = tol
         self.num_mbs = 0
-        self.traj_data = traj_data
-        self.ckpt = (-1, copy.deepcopy(self.model.state_dict()))
 
     def _rollout_model(self, z0, ts, sys_params):
         """ inputs [z0: (bs, z_dim), ts: (bs, T), sys_params: (bs, n, c)]
@@ -45,9 +43,8 @@ class IntegratedDynamicsTrainer(Trainer):
         self.num_mbs += 1
         return (pred_zs - true_zs).pow(2).mean()
 
-    def _get_rollout_mse(self):
-        assert self.traj_data is not None
-        ts, true_zs, sys_params = self.traj_data
+    def get_rollout_mse(self,traj_data):
+        ts, true_zs, sys_params = traj_data
         z0 = true_zs[:, 0]
         with Eval(self.model), torch.no_grad():
             pred_zs = self._rollout_model(z0, ts, sys_params)
@@ -60,9 +57,6 @@ class IntegratedDynamicsTrainer(Trainer):
     def logStuff(self, step, minibatch=None):
         self.logger.add_scalars('info', {'nfe': self.model.nfe/(max(self.num_mbs, 1e-3))}, step)
         super().logStuff(step, minibatch)
-        idx = self.logger.scalar_frame['val_MSE'].values.argmin()
-        if not idx == self.ckpt[0]:
-            self.ckpt = (idx, copy.deepcopy(self.model.state_dict()))
 
 def logspace(a,b,k):
     return np.exp(np.linspace(np.log(a),np.log(b),k))
