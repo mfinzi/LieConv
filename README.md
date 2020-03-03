@@ -1,7 +1,10 @@
 
-# Generalizing Convolutional Neural Networks for Equivarianceto Lie Groups on Arbitrary Continuous Data
+# Generalizing Convolutional Neural Networks for Equivariance to Lie Groups on Arbitrary Continuous Data
 This repo contains the implementation and the experiments for the paper 
-_Generalizing Convolutional Neural Networks for Equivariance to Lie Groups_ by Marc Finzi, Samuel Stanton, Pavel Izmailov, and Andrew Gordon Wilson. [![Code Climate maintainability](https://img.shields.io/codeclimate/maintainability-percentage/mfinzi/LieConv)](https://codeclimate.com/github/mfinzi/LieConv)
+
+_Generalizing Convolutional Neural Networks for Equivariance to Lie Groups on Aribitrary Continuous Data_ [link](https://arxiv.org/abs/2002.12880)
+
+by Marc Finzi, Samuel Stanton, Pavel Izmailov, and Andrew Gordon Wilson. [![Code Climate maintainability](https://img.shields.io/codeclimate/maintainability-percentage/mfinzi/LieConv)](https://codeclimate.com/github/mfinzi/LieConv)
 
 <p align="center">
   <img src="https://user-images.githubusercontent.com/14368801/75301161-054aeb00-5808-11ea-8726-940bed42ee3f.png" width=500>
@@ -37,7 +40,7 @@ Dependencies will be automatically installed from the setup.py file with `pip in
 * Python 3.7+
 * [PyTorch](http://pytorch.org/) 1.3.0+
 * [torchvision](https://github.com/pytorch/vision/)
-* [snake-oil-ml](https://github.com/mfinzi/snake-oil-ml)
+* [olive-oil-ml](https://github.com/mfinzi/olive-oil-ml)
 * [torchdiffeq](https://github.com/rtqichen/torchdiffeq)
 * (optional) [torch-scatter,torch-sparse,torch-cluster,torch-geometric]
 * (optional) [tensorboardX](https://github.com/lanpa/tensorboardX)

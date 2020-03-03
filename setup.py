@@ -9,7 +9,7 @@ setup(name="lie-conv",
       license='MIT',
       python_requires='>=3.6',
       install_requires=['h5py',
-      'snake-oil-ml @ git+https://github.com/mfinzi/snake-oil-ml',
+      'olive-oil-ml @ git+https://github.com/mfinzi/olive-oil-ml',
       'torchdiffeq @ git+https://github.com/rtqichen/torchdiffeq'],#
       extras_require = {
           'GN':['torch-scatter','torch-sparse','torch-cluster','torch-geometric'],
