@@ -62,7 +62,7 @@ class PointConv(nn.Module):
         nbhd_vals_m = torch.where(nbhd_mask.unsqueeze(-1),nbhd_vals,torch.zeros_like(nbhd_vals))
         #      (bs,m,nbhd,ci) -> (bs,m,ci,nbhd) @ (bs, m, nbhd, cmco/ci) -> (bs,m,ci,cmco/ci) -> (bs,m, cmco) 
         partial_convolved_vals = (nbhd_vals_m.transpose(-1,-2)@penult_kernel_weights_m).view(bs, m, -1)
-        convolved_vals = self.linear(partial_convolved_vals) #  (bs,m,cmco) -> (bs,m,co)
+        convolved_vals = self.linear(partial_convolved_vals)#/np.sqrt(ci) #  (bs,m,cmco) -> (bs,m,co)
         if self.mean: convolved_vals /= nbhd_mask.sum(-1,keepdim=True).clamp(min=1) # why so Nan
         return convolved_vals
 
@@ -133,6 +133,33 @@ class FPSsubsample(nn.Module):
         if withquery: return (subsampled_ab_pairs,subsampled_values,subsampled_mask, query_idx)
         return (subsampled_ab_pairs,subsampled_values,subsampled_mask)
 
+def sample_within_ball(within_ball,k,bs):
+    """ inputs: [within_ball (bs,m,n)] int k
+        outputs: [indices (bs,m,k)]"""
+    m,n = within_ball.shape[1:]
+    with torch.no_grad():
+        max_k = torch.max(within_ball.sum(dim=-1))
+    k_to_use = min(max_k,k)
+    fixed_coordinates = (bs!=within_ball.shape[0])
+    if fixed_coordinates:
+        
+        mask_restricted, idx_restricted =  torch.topk(within_ball.float(), k=max_k, dim=-1,largest=True,sorted=False)
+        # (1,m,k) (1,m,k)
+        noise = torch.zeros_like(mask_restricted).repeat((bs,1,1))
+        noise.uniform_(0,1)
+        mask_restricted_subsampled, idx_restricted_subsampled = torch.topk(mask_restricted+noise, k=k_to_use, dim=-1,largest=True,sorted=False)
+        # (bs,m,k)
+        M = torch.arange(m).long().to(idx_restricted.device)[None,:,None]
+        idx_subsampled = idx_restricted[0,M,idx_restricted_subsampled]
+        return idx_subsampled
+    else:
+        noise = torch.zeros(bs,m,n,device=within_ball.device)
+        noise.uniform_(0,1)
+        valid_within_ball, nbhd_idx =torch.topk(within_ball+noise,k_to_use,dim=-1,largest=True,sorted=False)
+        valid_within_ball = (valid_within_ball>1)
+        return nbhd_idx
+
+
 class LieConv(PointConv):
     def __init__(self,*args,group=SE3,ds_frac=1,fill=1/3,cache=False,knn=False,**kwargs):
         kwargs.pop('xyz_dim',None)
@@ -144,14 +171,15 @@ class LieConv(PointConv):
         self.subsample = FPSsubsample(ds_frac,cache=cache,group=self.group)
         self.coeff = .5
         self.fill_frac_ema = fill
-        
+    
+
     def extract_neighborhood(self,inp,query_indices):
         """ inputs: [pairs_ab (bs,n,n,d), inp_vals (bs,n,c), mask (bs,n), query_indices (bs,m)]
-            outputs: [neighbor_ab (bs,m,nbhd,d), neighbor_vals (bs,m,nbhd,c)]"""
+            outputs: [neighbor_ab (bs,m,nbhd,d), neighbor_vals (bs,m,nbhd,c), nbhd_mask (bs,m, nbhd)]"""
         
         pairs_ab, inp_vals, mask = inp
         if query_indices is not None:
-            B = torch.arange(inp_vals.shape[0],device=inp_vals.device).long()[:,None]
+            B = torch.arange(pairs_ab.shape[0],device=inp_vals.device).long()[:,None]
             ab_at_query = pairs_ab[B,query_indices]
             mask_at_query = mask[B,query_indices]
         else:
@@ -162,33 +190,31 @@ class LieConv(PointConv):
         dists = torch.where(mask[:,None,:].expand(*dists.shape),dists,1e8*torch.ones_like(dists))
         k = min(self.nbhd,inp_vals.shape[1])
         # NBHD: Subsampling within the ball
-        bs,m,n = dists.shape
+        _,m,n = dists.shape
+        bs = inp_vals.shape[0]
         if self.knn: # NBHD: KNN
             nbhd_idx = torch.topk(dists,k,dim=-1,largest=False,sorted=False)[1] #(bs,m,nbhd)
             valid_within_ball = (nbhd_idx>-1)&mask[:,None,:]&mask_at_query[:,:,None]
             assert not torch.any(nbhd_idx>dists.shape[-1]), f"error with topk,\
                         nbhd{k} nans|inf{torch.any(torch.isnan(dists)|torch.isinf(dists))}"
         else: # NBHD: Sampled Distance Ball
-            within_ball = (dists < self.r)&mask[:,None,:]&mask_at_query[:,:,None] # (bs,m,n)
-            B = torch.arange(bs)[:,None,None]#.expand(*random_perm.shape)
-            M = torch.arange(m)[None,:,None]#.expand(*random_perm.shape)
-
-            noise = torch.zeros(bs,m,n,device=within_ball.device)
-            noise.uniform_(0,1)
-            valid_within_ball, nbhd_idx =torch.topk(within_ball+noise,k,dim=-1,largest=True,sorted=False)
-            valid_within_ball = (valid_within_ball>1)
-        
-        B = torch.arange(inp_vals.shape[0],device=inp_vals.device).long()[:,None,None].expand(*nbhd_idx.shape)
+            valid_within_ball = (dists < self.r)&mask[:,None,:]&mask_at_query[:,:,None] # (bs,m,n)
+            nbhd_idx = sample_within_ball(valid_within_ball,k,bs)
+        #print(ab_at_query.shape)
+        B = torch.arange(bs,device=inp_vals.device).long()[:,None,None].expand(*nbhd_idx.shape)
+        b = B if dists.shape[0]==bs else 0
         M = torch.arange(ab_at_query.shape[1],device=inp_vals.device).long()[None,:,None].expand(*nbhd_idx.shape)
-        nbhd_ab = ab_at_query[B,M,nbhd_idx]  #(bs,m,n,d) -> (bs,m,nbhd,d)
+        nbhd_ab = ab_at_query[b,M,nbhd_idx]  #(bs,m,n,d) -> (bs,m,nbhd,d)
         nbhd_vals = vals_at_query[B,nbhd_idx]#(bs,n,c) -> (bs,m,nbhd,c)
-        nbhd_mask = mask[B,nbhd_idx]         #(bs,n) -> (bs,m,nbhd)
-        navg = (within_ball.float()).sum(-1).sum()/mask_at_query[:,:,None].sum()
+        nbhd_mask = mask[b,nbhd_idx]         #(bs,n) -> (bs,m,nbhd)
+        #print(nbhd_ab.shape,nbhd_vals.shape,nbhd_mask.shape)
+        navg = (valid_within_ball.float()).sum(-1).sum()/mask_at_query[:,:,None].sum()
         if self.training:
             avg_fill = (navg/mask.sum(-1).float().mean()).cpu().item()
             self.r +=  self.coeff*(self.fill_frac - avg_fill)#self.fill_frac*n/navg.cpu().item()-1)
             self.fill_frac_ema += .1*(avg_fill-self.fill_frac_ema)
-        return nbhd_ab, nbhd_vals, nbhd_mask#(nbhd_mask&valid_within_ball.bool())W
+            #print(avg_fill)
+        return nbhd_ab, nbhd_vals, nbhd_mask#(nbhd_mask&valid_within_ball.bool())#W
     # def log_data(self,logger,step,name):
     #     logger.add_scalars('info', {f'{name}_fill':self.fill_frac_ema}, step=step)
     #     logger.add_scalars('info', {f'{name}_R':self.r}, step=step)
@@ -215,6 +241,7 @@ class LieConv(PointConv):
         nbhd_ab, nbhd_vals, nbhd_mask = self.extract_neighborhood(inp, query_indices)
         convolved_vals = self.point_convolve(nbhd_ab, nbhd_vals, nbhd_mask)
         convolved_wzeros = torch.where(sub_mask.unsqueeze(-1),convolved_vals,torch.zeros_like(convolved_vals))
+        # assert not torch.any(torch.isnan(convolved_wzeros)|torch.isinf(convolved_wzeros)), f"nans|inf{torch.any(torch.isnan(convolved_wzeros)|torch.isinf(convolved_wzeros))}"
         return sub_ab, convolved_wzeros, sub_mask
 
 
@@ -290,7 +317,6 @@ class LieResNet(nn.Module,metaclass=Named):
         self.net = nn.Sequential(
             Pass(nn.Linear(chin,k[0]),dim=1), #embedding layer
             *[BottleBlock(k[i],k[i+1],conv,bn=bn,act=act,fill=fill[i]) for i in range(num_layers)],
-            #Pass(nn.Linear(k[-1],k[-1]//2),dim=1),
             MaskBatchNormNd(k[-1]) if bn else nn.Sequential(),
             Pass(Swish() if act=='swish' else nn.ReLU(),dim=1),
             Pass(nn.Linear(k[-1],num_outputs),dim=1),
@@ -308,7 +334,7 @@ class LieResNet(nn.Module,metaclass=Named):
 class ImgLieResnet(LieResNet):
     def __init__(self,chin=1,total_ds=1/64,num_layers=6,group=T(2),fill=1/32,k=256,
         knn=False,nbhd=12,num_targets=10,increase_channels=True,**kwargs):
-        ds_frac = (total_ds)**(1/num_layers)
+        ds_frac = (total_ds)**(1/num_layers) if num_layers else 1
         fill = [fill/ds_frac**i for i in range(num_layers)]
         if increase_channels:
             k = [int(k/ds_frac**(i/2)) for i in range(num_layers+1)]
@@ -325,13 +351,24 @@ class ImgLieResnet(LieResNet):
         coords = coords[center_mask].view(-1,2).unsqueeze(0).repeat(bs,1,1).to(x.device)
         if coord_transform is not None: coords = coord_transform(coords)
         values = x.permute(0,2,3,1)[:,center_mask,:].reshape(bs,-1,c)
-        mask = torch.ones(bs,values.shape[1],device=x.device)>0 # all true
+        mask = torch.ones(1,values.shape[1],device=x.device)>0 # all true # if test_lift else bs
         z = (coords,values,mask)
         with torch.no_grad():
+            z_bs1 = (coords[:1],values[:1],mask[:1])
             if self.lifted_coords is None:
-                self.lifted_coords,lifted_vals,lifted_mask = self.group.lift(z,self.liftsamples)
-            else:
-                lifted_vals,lifted_mask = self.group.expand_like(values,mask,self.lifted_coords)
+                self.lifted_coords,_,_ = self.group.lift(z_bs1,self.liftsamples)
+            lifted_vals,lifted_mask = self.group.expand_like(values,mask,self.lifted_coords)
+            # if self.lifted_coords is None:
+            #     self.lifted_coords,lifted_vals,lifted_mask = self.group.lift(z,self.liftsamples)
+            # else:
+            #     lifted_vals,lifted_mask = self.group.expand_like(values,mask,self.lifted_coords)
+            # if test_lift:
+            #     z_bs1 = (coords[:1],values[:1],mask[:1])
+            #     self.lifted_coords,_,_ = self.group.lift(z_bs1,self.liftsamples)
+            #     lifted_vals,lifted_mask = self.group.expand_like(values,mask,self.lifted_coords)
+            # else:
+            #     self.lifted_coords,_,_ = self.group.lift(z,self.liftsamples)
+            #     lifted_vals,lifted_mask = self.group.expand_like(values,mask,self.lifted_coords)
         return self.net((self.lifted_coords,lifted_vals,lifted_mask))
 
 

@@ -78,12 +78,14 @@ class LieGroup(object,metaclass=Named):
         return (embedded_locations,expanded_v,expanded_mask)
     
     def expand_like(self,v,m,a):
+        """TODO"""
+        bs = v.shape[0]
         nsamples = a.shape[-2]//m.shape[-1]
         #print(nsamples,a.shape,v.shape)
         expanded_v = v[...,None,:].repeat((1,)*len(v.shape[:-1])+(nsamples,1)) # (bs,n,c) -> (bs,n,1,c) -> (bs,n,ns,c)
-        expanded_v = expanded_v.reshape(*a.shape[:2],v.shape[-1]) # (bs,n,ns,c) -> (bs,n*ns,c)
+        expanded_v = expanded_v.reshape(bs,a.shape[1],v.shape[-1]) # (bs,n,ns,c) -> (bs,n*ns,c)
         expanded_mask = m[...,None].repeat((1,)*len(v.shape[:-1])+(nsamples,)) # (bs,n) -> (bs,n,ns)
-        expanded_mask = expanded_mask.reshape(*a.shape[:2]) # (bs,n,ns) -> (bs,n*ns)
+        expanded_mask = expanded_mask.reshape(a.shape[0],a.shape[1]) # (bs,n,ns) -> (bs,n*ns)
         return expanded_v, expanded_mask
     
     def elems2pairs(self,a):
