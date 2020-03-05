@@ -14,11 +14,13 @@ class MaskBatchNormNd(nn.BatchNorm1d):
         if self.training or not self.track_running_stats:
             xsum = x_or_zero.sum(dim=sum_dims)
             xxsum = (x_or_zero*x_or_zero).sum(dim=sum_dims)
-            numel_notnan = (mask).sum()
-            xmean = xsum / numel_notnan
+            numel_mask = (mask).sum()
+            if mask.shape!=x.shape[:-1]:
+                numel_mask *= x.shape[0]
+            xmean = xsum / numel_mask
             sumvar = xxsum - xsum * xmean
-            unbias_var = sumvar / (numel_notnan - 1)
-            bias_var = sumvar / numel_notnan
+            unbias_var = sumvar / (numel_mask - 1)
+            bias_var = sumvar / numel_mask
             self.running_mean = (
                 (1 - self.momentum) * self.running_mean
                 + self.momentum * xmean.detach())

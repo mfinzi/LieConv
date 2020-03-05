@@ -200,13 +200,13 @@ class LieConv(PointConv):
         else: # NBHD: Sampled Distance Ball
             valid_within_ball = (dists < self.r)&mask[:,None,:]&mask_at_query[:,:,None] # (bs,m,n)
             nbhd_idx = sample_within_ball(valid_within_ball,k,bs)
-        #print(ab_at_query.shape)
+
         B = torch.arange(bs,device=inp_vals.device).long()[:,None,None].expand(*nbhd_idx.shape)
         b = B if dists.shape[0]==bs else 0
         M = torch.arange(ab_at_query.shape[1],device=inp_vals.device).long()[None,:,None].expand(*nbhd_idx.shape)
-        nbhd_ab = ab_at_query[b,M,nbhd_idx]  #(bs,m,n,d) -> (bs,m,nbhd,d)
-        nbhd_vals = vals_at_query[B,nbhd_idx]#(bs,n,c) -> (bs,m,nbhd,c)
-        nbhd_mask = mask[b,nbhd_idx]         #(bs,n) -> (bs,m,nbhd)
+        nbhd_ab = ab_at_query[b,M,nbhd_idx]   #(bs,m,n,d) -> (bs,m,nbhd,d)
+        nbhd_vals = vals_at_query[B,nbhd_idx] #(bs,n,c)   -> (bs,m,nbhd,c)
+        nbhd_mask = mask[b,nbhd_idx]          #(bs,n)     -> (bs,m,nbhd)
         #print(nbhd_ab.shape,nbhd_vals.shape,nbhd_mask.shape)
         navg = (valid_within_ball.float()).sum(-1).sum()/mask_at_query[:,:,None].sum()
         if self.training:
@@ -214,7 +214,7 @@ class LieConv(PointConv):
             self.r +=  self.coeff*(self.fill_frac - avg_fill)#self.fill_frac*n/navg.cpu().item()-1)
             self.fill_frac_ema += .1*(avg_fill-self.fill_frac_ema)
             #print(avg_fill)
-        return nbhd_ab, nbhd_vals, nbhd_mask#(nbhd_mask&valid_within_ball.bool())#W
+        return nbhd_ab, nbhd_vals, (nbhd_mask&valid_within_ball[b,M,nbhd_idx].bool())#W
     # def log_data(self,logger,step,name):
     #     logger.add_scalars('info', {f'{name}_fill':self.fill_frac_ema}, step=step)
     #     logger.add_scalars('info', {f'{name}_R':self.r}, step=step)
@@ -222,8 +222,7 @@ class LieConv(PointConv):
     def point_convolve(self,embedded_group_elems,nbhd_vals,nbhd_mask):
         """ embedded_group_elems: (bs,m,nbhd,d)
             nbhd_vals: (bs,m,nbhd,ci)
-            nbhd_mask: (bs,m,nbhd)
-            """
+            nbhd_mask: (bs,m,nbhd) """
         bs, m, nbhd, ci = nbhd_vals.shape  # (bs,m,nbhd,d) -> (bs,m,nbhd,cm*co/ci)
         _, penult_kernel_weights, _ = self.weightnet((None,embedded_group_elems,nbhd_mask))
         penult_kernel_weights_m = torch.where(nbhd_mask.unsqueeze(-1),penult_kernel_weights,torch.zeros_like(penult_kernel_weights))
@@ -351,10 +350,11 @@ class ImgLieResnet(LieResNet):
         coords = coords[center_mask].view(-1,2).unsqueeze(0).repeat(bs,1,1).to(x.device)
         if coord_transform is not None: coords = coord_transform(coords)
         values = x.permute(0,2,3,1)[:,center_mask,:].reshape(bs,-1,c)
-        mask = torch.ones(1,values.shape[1],device=x.device)>0 # all true # if test_lift else bs
+        cache=True
+        mask = torch.ones(1 if cache else bs,values.shape[1],device=x.device)>0 # all true # if test_lift else bs
         z = (coords,values,mask)
         with torch.no_grad():
-            z_bs1 = (coords[:1],values[:1],mask[:1])
+            z_bs1 = (coords[:1],values[:1],mask[:1]) if cache else z
             if self.lifted_coords is None:
                 self.lifted_coords,_,_ = self.group.lift(z_bs1,self.liftsamples)
             lifted_vals,lifted_mask = self.group.expand_like(values,mask,self.lifted_coords)
