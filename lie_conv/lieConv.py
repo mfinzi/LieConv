@@ -163,11 +163,12 @@ def sample_within_ball(within_ball,k,bs):
 class LieConv(PointConv):
     def __init__(self,*args,group=SE3,ds_frac=1,fill=1/3,cache=False,knn=False,**kwargs):
         kwargs.pop('xyz_dim',None)
+        
+        super().__init__(*args,xyz_dim=group.embed_dim+2*group.q_dim,**kwargs)
         self.group = group
-        self.r = 2#radius
         self.fill_frac = min(fill,1.)
         self.knn=knn
-        super().__init__(*args,xyz_dim=group.embed_dim+2*group.q_dim,**kwargs)
+        self.register_buffer('r',torch.tensor(2))
         self.subsample = FPSsubsample(ds_frac,cache=cache,group=self.group)
         self.coeff = .5
         self.fill_frac_ema = fill
@@ -214,7 +215,7 @@ class LieConv(PointConv):
             self.r +=  self.coeff*(self.fill_frac - avg_fill)#self.fill_frac*n/navg.cpu().item()-1)
             self.fill_frac_ema += .1*(avg_fill-self.fill_frac_ema)
             #print(avg_fill)
-        return nbhd_ab, nbhd_vals, (nbhd_mask&valid_within_ball[b,M,nbhd_idx].bool())#W
+        return nbhd_ab, nbhd_vals, nbhd_mask#(nbhd_mask&valid_within_ball[b,M,nbhd_idx].bool())#W
     # def log_data(self,logger,step,name):
     #     logger.add_scalars('info', {f'{name}_fill':self.fill_frac_ema}, step=step)
     #     logger.add_scalars('info', {f'{name}_R':self.r}, step=step)
@@ -326,7 +327,8 @@ class LieResNet(nn.Module,metaclass=Named):
         self.group = group
 
     def forward(self, x):
-        lifted_x = self.group.lift(x,self.liftsamples)
+        with torch.no_grad():
+            lifted_x = self.group.lift(x,self.liftsamples)
         return self.net(lifted_x)
 
 @export
@@ -358,17 +360,6 @@ class ImgLieResnet(LieResNet):
             if self.lifted_coords is None:
                 self.lifted_coords,_,_ = self.group.lift(z_bs1,self.liftsamples)
             lifted_vals,lifted_mask = self.group.expand_like(values,mask,self.lifted_coords)
-            # if self.lifted_coords is None:
-            #     self.lifted_coords,lifted_vals,lifted_mask = self.group.lift(z,self.liftsamples)
-            # else:
-            #     lifted_vals,lifted_mask = self.group.expand_like(values,mask,self.lifted_coords)
-            # if test_lift:
-            #     z_bs1 = (coords[:1],values[:1],mask[:1])
-            #     self.lifted_coords,_,_ = self.group.lift(z_bs1,self.liftsamples)
-            #     lifted_vals,lifted_mask = self.group.expand_like(values,mask,self.lifted_coords)
-            # else:
-            #     self.lifted_coords,_,_ = self.group.lift(z,self.liftsamples)
-            #     lifted_vals,lifted_mask = self.group.expand_like(values,mask,self.lifted_coords)
         return self.net((self.lifted_coords,lifted_vals,lifted_mask))
 
 
