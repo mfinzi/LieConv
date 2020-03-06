@@ -35,8 +35,8 @@ def makeTrainer(*, dataset=MnistRotDataset, network=ImgLieResnet, num_epochs=100
     dataloaders['Train'] = islice(dataloaders['train'],1+len(dataloaders['train'])//10)
     if small_test: dataloaders['test'] = islice(dataloaders['test'],1+len(dataloaders['train'])//10)
     # Add some extra defaults if SGD is chosen
-    opt_constr = lambda params: SWA(optim(params,lr=lr,**opt_config),swa_start=0,swa_freq=100,swa_lr=swa_lr)
-    lr_sched = cosLr(num_epochs)
+    opt_constr = lambda params: optim(params,lr=lr,**opt_config)
+    lr_sched = lambda e:1#cosLr(num_epochs)
     return trainer(model,dataloaders,opt_constr,lr_sched,**trainer_config)
 
 class swa_finetune(object):
@@ -49,6 +49,7 @@ class swa_finetune(object):
         cfg.pop('local_rank',None) #TODO: properly handle distributed
         resume = cfg.pop('resume',False)
         save = cfg.pop('save',False)
+        swa_lr = cfg.pop('swa_lr')
         if i is not None:
             orig_suffix = cfg.setdefault('trainer_config',{}).get('log_suffix','')
             cfg['trainer_config']['log_suffix'] = os.path.join(orig_suffix,f'trial{i}/')
@@ -58,6 +59,7 @@ class swa_finetune(object):
         trainer.logger.add_scalars('config',flatten_dict(cfg))
         epochs = cfg['num_epochs']
         if resume: trainer.load_checkpoint(None if resume==True else resume)
+        trainer.optimizer = SWA(trainer.optimizer,swa_start=0,swa_freq=100,swa_lr=swa_lr)
         trainer.train_to(epochs)
         trainer.optimizer.swap_swa_sgd()
         trainer.optimizer.bn_update(trainer.dataloaders['train'],trainer.model)
