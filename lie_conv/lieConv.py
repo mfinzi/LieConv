@@ -326,7 +326,8 @@ class LieResNet(nn.Module,metaclass=Named):
         self.group = group
 
     def forward(self, x):
-        lifted_x = self.group.lift(x,self.liftsamples)
+        with torch.no_grad():
+            lifted_x = self.group.lift(x,self.liftsamples)
         return self.net(lifted_x)
 
 @export
@@ -358,17 +359,6 @@ class ImgLieResnet(LieResNet):
             if self.lifted_coords is None:
                 self.lifted_coords,_,_ = self.group.lift(z_bs1,self.liftsamples)
             lifted_vals,lifted_mask = self.group.expand_like(values,mask,self.lifted_coords)
-            # if self.lifted_coords is None:
-            #     self.lifted_coords,lifted_vals,lifted_mask = self.group.lift(z,self.liftsamples)
-            # else:
-            #     lifted_vals,lifted_mask = self.group.expand_like(values,mask,self.lifted_coords)
-            # if test_lift:
-            #     z_bs1 = (coords[:1],values[:1],mask[:1])
-            #     self.lifted_coords,_,_ = self.group.lift(z_bs1,self.liftsamples)
-            #     lifted_vals,lifted_mask = self.group.expand_like(values,mask,self.lifted_coords)
-            # else:
-            #     self.lifted_coords,_,_ = self.group.lift(z,self.liftsamples)
-            #     lifted_vals,lifted_mask = self.group.expand_like(values,mask,self.lifted_coords)
         return self.net((self.lifted_coords,lifted_vals,lifted_mask))
 
 
