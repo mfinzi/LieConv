@@ -168,7 +168,7 @@ class LieConv(PointConv):
         self.group = group
         self.fill_frac = min(fill,1.)
         self.knn=knn
-        self.register_buffer('r',torch.tensor(2))
+        self.register_buffer('r',torch.tensor(2.))
         self.subsample = FPSsubsample(ds_frac,cache=cache,group=self.group)
         self.coeff = .5
         self.fill_frac_ema = fill
