@@ -63,7 +63,7 @@ class swa_finetune(object):
         trainer.train_to(epochs)
         trainer.optimizer.swap_swa_sgd()
         trainer.optimizer.bn_update(trainer.dataloaders['train'],trainer.model)
-        trainer.logStuff()
+        trainer.logStuff(trainer.epoch*len(trainer.dataloaders['train']))
         if save: cfg['saved_at']=trainer.save_checkpoint()
         outcome = trainer.ckpt['outcome']
         del trainer
