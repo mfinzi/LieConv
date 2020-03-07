@@ -11,12 +11,12 @@ by Marc Finzi, Samuel Stanton, Pavel Izmailov, and Andrew Gordon Wilson. [![Code
 </p>
 
 If you find our work helpful, please cite it with
-@article{finzi2020generalizing,
+```@article{finzi2020generalizing,
   title={Generalizing Convolutional Neural Networks for Equivariance to Lie Groups on Arbitrary Continuous Data},
   author={Finzi, Marc and Stanton, Samuel and Izmailov, Pavel and Wilson, Andrew Gordon},
   journal={arXiv preprint arXiv:2002.12880},
   year={2020}
-}
+}```
 
 ## Introduction
 
