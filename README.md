@@ -16,7 +16,8 @@ If you find our work helpful, please cite it with
   author={Finzi, Marc and Stanton, Samuel and Izmailov, Pavel and Wilson, Andrew Gordon},
   journal={arXiv preprint arXiv:2002.12880},
   year={2020}
-}```
+}
+```
 
 ## Introduction
 
