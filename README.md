@@ -10,6 +10,14 @@ by Marc Finzi, Samuel Stanton, Pavel Izmailov, and Andrew Gordon Wilson. [![Code
   <img src="https://user-images.githubusercontent.com/14368801/75301161-054aeb00-5808-11ea-8726-940bed42ee3f.png" width=500>
 </p>
 
+If you find our work helpful, please cite it with
+@article{finzi2020generalizing,
+  title={Generalizing Convolutional Neural Networks for Equivariance to Lie Groups on Arbitrary Continuous Data},
+  author={Finzi, Marc and Stanton, Samuel and Izmailov, Pavel and Wilson, Andrew Gordon},
+  journal={arXiv preprint arXiv:2002.12880},
+  year={2020}
+}
+
 ## Introduction
 
 LieConv is an equivariant convolutional layer that can be applied on generic coordinate-value data and instantiated with the symmetries of a given Lie Group. LieConv was designed with rapid prototyping in mind, we believe that researchers and engineers should be able to experiment with multiple symmetry groups rather than being locked into using a given symmetry by the method.
