@@ -1,7 +1,7 @@
 import torch
 from torch.utils.data import DataLoader
 from torch.optim import Adam
-from oil.utils.utils import LoaderTo, islice, cosLr
+from oil.utils.utils import LoaderTo, islice, cosLr, FixedNumpySeed
 from oil.tuning.args import argupdated_config
 from oil.tuning.study import train_trial
 from oil.utils.parallel import try_multigpu_parallelize
@@ -21,8 +21,9 @@ def makeTrainer(*, task='homo', device='cuda', lr=1e-2, bs=100, num_epochs=500,
                 subsample=False, trainer_config={'log_dir':None,'log_suffix':''}):#,'log_args':{'timeFrac':1/4,'minPeriod':0}}):
     # Create Training set and model
     device = torch.device(device)
-    datasets, num_species, charge_scale = QM9datasets()
-    if subsample: datasets.update(split_dataset(datasets['train'],{'train':subsample}))
+    with FixedNumpySeed(0):
+        datasets, num_species, charge_scale = QM9datasets()
+        if subsample: datasets.update(split_dataset(datasets['train'],{'train':subsample}))
     ds_stats = datasets['train'].stats[task]
     if recenter:
         m = datasets['train'].data['charges']>0

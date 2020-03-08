@@ -215,7 +215,7 @@ class LieConv(PointConv):
             self.r +=  self.coeff*(self.fill_frac - avg_fill)#self.fill_frac*n/navg.cpu().item()-1)
             self.fill_frac_ema += .1*(avg_fill-self.fill_frac_ema)
             #print(avg_fill)
-        return nbhd_ab, nbhd_vals, nbhd_mask#(nbhd_mask&valid_within_ball[b,M,nbhd_idx].bool())#W
+        return nbhd_ab, nbhd_vals, (nbhd_mask&valid_within_ball[b,M,nbhd_idx].bool())#W
     # def log_data(self,logger,step,name):
     #     logger.add_scalars('info', {f'{name}_fill':self.fill_frac_ema}, step=step)
     #     logger.add_scalars('info', {f'{name}_R':self.r}, step=step)

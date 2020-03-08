@@ -1,6 +1,6 @@
 import torch
 from torch.utils.data import DataLoader
-from oil.utils.utils import LoaderTo, cosLr, islice
+from oil.utils.utils import LoaderTo, cosLr, islice, FixedNumpySeed
 from oil.tuning.study import train_trial
 from oil.datasetup.datasets import split_dataset
 from oil.utils.parallel import try_multigpu_parallelize
@@ -23,12 +23,12 @@ def makeTrainer(*, dataset=MnistRotDataset, network=ImgLieResnet, num_epochs=100
                 trainer_config={'log_dir':None}):
 
     # Prep the datasets splits, model, and dataloaders
-    datasets = split_dataset(dataset(f'~/datasets/{dataset}/'),splits=split)
+    with FixedNumpySeed(0):
+        datasets = split_dataset(dataset(f'~/datasets/{dataset}/'),splits=split)
     datasets['test'] = dataset(f'~/datasets/{dataset}/', train=False)
     device = torch.device(device)
     model = network(num_targets=datasets['train'].num_targets,**net_config).to(device)
     if aug: model = torch.nn.Sequential(datasets['train'].default_aug_layers(),model)
-    model,bs = try_multigpu_parallelize(model,bs)
 
     dataloaders = {k:LoaderTo(DataLoader(v,batch_size=bs,shuffle=(k=='train'),
                 num_workers=0,pin_memory=False),device) for k,v in datasets.items()}
