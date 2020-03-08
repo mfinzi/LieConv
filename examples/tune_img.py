@@ -13,10 +13,11 @@ import lie_conv.lieGroups as lieGroups
 import lie_conv.lieConv as lieConv
 from lie_conv.lieConv import ImgLieResnet
 from lie_conv.datasets import MnistRotDataset
-from lie_conv.examples.train_img import makeTrainer,Trial
+from examples.train_img import makeTrainer
 from oil.tuning.study import Study
 
 if __name__ == '__main__':
+    Trial = train_trial(makeTrainer)
     thestudy = Study(Trial,{},study_name='tune_se2_img_hypers')
     config_spec = copy.deepcopy(makeTrainer.__kwdefaults__)
     config_spec.update({
