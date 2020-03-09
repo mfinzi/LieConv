@@ -7,7 +7,7 @@ import numpy as np
 from lie_conv.utils import Expression,export,Named, Pass
 from lie_conv.utils import FarthestSubsample, knn_point, index_points
 from lie_conv.lieGroups import T,SO2,SO3,SE2,SE3, norm
-from lie_conv.masked_batchnorm import MaskBatchNormNd
+from lie_conv.masked_batchnorm import MaskBatchNormNd,DecorrelateBN
 
 @export
 def Swish():
@@ -273,10 +273,10 @@ class BottleBlock(nn.Module):
             MaskBatchNormNd(chin) if bn else nn.Sequential(),
             Pass(nonlinearity(),dim=1),
             Pass(nn.Linear(chin,chin//4),dim=1),
-            MaskBatchNormNd(chin//4) if bn else nn.Sequential(),
+            [nn.Sequential(),MaskBatchNormNd(chin//4),DecorrelateBN(chin//4)][bn],
             Pass(nonlinearity(),dim=1),
             self.conv,
-            MaskBatchNormNd(chout//4) if bn else nn.Sequential(),
+            [nn.Sequential(),MaskBatchNormNd(chout//4),DecorrelateBN(chout//4)][bn],
             Pass(nonlinearity(),dim=1),
             Pass(nn.Linear(chout//4,chout),dim=1),
         )
@@ -317,7 +317,7 @@ class LieResNet(nn.Module,metaclass=Named):
         self.net = nn.Sequential(
             Pass(nn.Linear(chin,k[0]),dim=1), #embedding layer
             *[BottleBlock(k[i],k[i+1],conv,bn=bn,act=act,fill=fill[i]) for i in range(num_layers)],
-            MaskBatchNormNd(k[-1]) if bn else nn.Sequential(),
+            [nn.Sequential(),DecorrelateBN(k[-1]),MaskBatchNormNd(k[-1])][bn],
             Pass(Swish() if act=='swish' else nn.ReLU(),dim=1),
             Pass(nn.Linear(k[-1],num_outputs),dim=1),
             GlobalPool(mean=mean) if pool else Expression(lambda x: x[1]),
