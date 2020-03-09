@@ -35,7 +35,7 @@ def makeTrainer(*, task='homo', device='cuda', lr=1e-2, bs=100, num_epochs=500,
     model,bs = try_multigpu_parallelize(model,bs)
     # Create train and Val(Test) dataloaders and move elems to gpu
     dataloaders = {key:LoaderTo(DataLoader(dataset,batch_size=bs,num_workers=0,
-                    shuffle=(key=='train'),pin_memory=True,collate_fn=collate_fn,drop_last=True),
+                    shuffle=(key=='train'),pin_memory=False,collate_fn=collate_fn,drop_last=True),
                     device) for key,dataset in datasets.items()}
     # subsampled training dataloader for faster logging of training performance
     dataloaders['Train'] = islice(dataloaders['train'],len(dataloaders['train'])//10)
@@ -51,6 +51,7 @@ Trial = train_trial(makeTrainer)
 if __name__=='__main__':
     defaults = copy.deepcopy(makeTrainer.__kwdefaults__)
     defaults['trainer_config']['early_stop_metric']='Train_MAE'
+    defaults['save']=False
     print(Trial(argupdated_config(defaults,namespace=(moleculeTrainer,lieGroups))))
 
     # thestudy = Study(simpleTrial,argupdated_config(config_spec,namespace=__init__),

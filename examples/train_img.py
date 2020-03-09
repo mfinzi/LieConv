@@ -43,4 +43,5 @@ if __name__=="__main__":
     Trial = train_trial(makeTrainer)
     defaults = copy.deepcopy(makeTrainer.__kwdefaults__)
     defaults['save'] = False
+    defaults['resume']=False
     Trial(argupdated_config(defaults,namespace=(lieConv,lieGroups)))
