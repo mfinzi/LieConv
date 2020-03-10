@@ -342,6 +342,7 @@ class ImgLieResnet(LieResNet):
         super().__init__(chin=chin,ds_frac=ds_frac,num_layers=num_layers,nbhd=nbhd,mean=True,
                         group=group,fill=fill,k=k,num_outputs=num_targets,cache=True,knn=knn,**kwargs)
         self.lifted_coords = None
+
     def forward(self,x,coord_transform=None):
         """ assumes x is a regular image: (bs,c,h,w)"""
         bs,c,h,w = x.shape
