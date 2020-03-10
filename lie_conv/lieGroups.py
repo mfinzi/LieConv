@@ -369,10 +369,11 @@ class SE2(SO2):
         # Sample stabilizer of the origin
         #thetas = (torch.rand(*p.shape[:-1],num_samples).to(p.device)*2-1)*np.pi
         #thetas = torch.randn(nsamples)*2*np.pi - np.pi
-        thetas = torch.linspace(-np.pi,np.pi,nsamples+1)[1:] 
+        thetas = torch.linspace(-np.pi,np.pi,nsamples+1)[1:].to(pt.device) 
         for _ in pt.shape[:-1]: # uniform on circle, but -pi and pi ar the same
             thetas=thetas.unsqueeze(0)
-        R = torch.zeros(*pt.shape[:-1],nsamples,d,d).to(pt.device)
+        #thetas = torch.rand(*pt.shape[:-1],1,device=pt.device)*2*np.pi + thetas # randomly rotate
+        R = torch.zeros(*pt.shape[:-1],nsamples,d,d,device=pt.device)
         sin,cos = thetas.sin(),thetas.cos()
         R[...,0,0] = cos
         R[...,1,1] = cos
