@@ -16,10 +16,10 @@ def Swish():
 def LinearBNact(chin,chout,act='swish',bn=True):
     """assumes that the inputs to the net are shape (bs,n,nbhd,c)"""
     assert act in ('relu','swish'), f"unknown activation type {act}"
-    normlayer = MaskBatchNormNd(chout)
+    normlayer = [nn.Sequential(),MaskBatchNormNd(chout),DecorrelateBN(chout)][bn]
     return nn.Sequential(
         Pass(nn.Linear(chin,chout),dim=1),
-        normlayer if bn else nn.Sequential(),
+        normlayer,
         Pass(Swish() if act=='swish' else nn.ReLU(),dim=1))
 
 def WeightNet(in_dim,out_dim,act,bn,k=32):
