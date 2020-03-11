@@ -1,6 +1,7 @@
 import torch
 import numpy as np
 from lie_conv.utils import export, Named
+import scipy.stats
 
 @export
 def norm(x,dim):
@@ -415,6 +416,7 @@ def uncross_matrix(K):
     k[...,2] = (K[...,1,0] - K[...,0,1])/2
     return k
 
+
 @export
 class SO3(LieGroup):
     embed_dim = 3
@@ -424,6 +426,7 @@ class SO3(LieGroup):
         super().__init__()
         self.alpha = alpha
     
+    @classmethod
     def exp(self,w):
         """ Rodriguez's formula, assuming shape (*,3)
             where components 1,2,3 are the generators for xrot,yrot,zrot"""
@@ -454,13 +457,18 @@ class SO3(LieGroup):
     def matrix2components(self,A): # A: (*,rep_dim,rep_dim)
         return uncross_matrix(A)
     
-    def sample(self,*shape,device=torch.device('cuda'),dtype=torch.float32):
-        q = torch.randn(*shape,4,device=device,dtype=dtype)
-        q /= norm(q,dim=-1).unsqueeze(-1)
+    @classmethod
+    def H2SO3(self,q):
         theta = 2*torch.atan2(norm(q[...,1:],dim=-1),q[...,0]).unsqueeze(-1)
         so3_elem = theta*q[...,1:]
         R = self.exp(so3_elem)
         return R
+
+    @classmethod
+    def sample(self,*shape,device=torch.device('cuda'),dtype=torch.float32):
+        q = torch.randn(*shape,4,device=device,dtype=dtype)
+        q /= norm(q,dim=-1).unsqueeze(-1)
+        return self.H2SO3(q)
     
     def lifted_elems(self,pt,mask,nsamples,**kwargs):
         """ Lifting from R^3 -> SO(3) , R^3/SO(3). pt shape (*,3)
@@ -499,15 +507,74 @@ class SO3(LieGroup):
         flat_a = A.reshape(*pt.shape[:-2],pt.shape[-2]*nsamples,d)
         return flat_a, flat_q
 
+class LowDiscrepancySequence(object):
+    """ A fibonacci based low discrepancy sequence.
+        See http://extremelearning.com.au/unreasonable-effectiveness-of-quasirandom-sequences/"""
+    def __init__(self,d,seed=.5):
+        super().__init__()
+        self.d = d
+        g = self.phi(d)
+        self.alphas = (g**(-np.arange(d)-1))%1
+        self.state = seed
+    def phi(self,d):
+        """ Generalized golden ratio """
+        x = 2.0
+        for _ in range(20):
+            x = (1+x)**(1/(d+1))
+        return x
+    def sample(self,n):
+        z = np.zeros((n,self.d))
+        for i in range(n):
+            self.state = (self.state+self.alphas)%1
+            z[i] = self.state
+        return z
+
+class LowDiscrepancyRotations(object):
+    def __init__(self):
+        super().__init__()
+        self.seq = LowDiscrepancySequence(d=4)
+    def sample(self,*shape,device=torch.device('cuda'),dtype=torch.float32):
+        n = np.prod(shape)
+        unif = self.seq.sample(n)
+        normal = scipy.stats.norm.ppf(unif)
+        q = normal/np.linalg.norm(normal,axis=-1,keepdims=True)
+        q = torch.from_numpy(q).to(device=device,dtype=dtype)
+        q = q.reshape(*shape,4)
+        R = SO3.H2SO3(q)
+        return R
+
+def repelling_loss(z):
+    """(4,n)"""
+    nz = z/(z**2).sum(dim=0,keepdim=True).sqrt()
+    dists = ((nz[:,:,None]-nz[:,None,:])**2).sum(dim=0)
+    relevant = -dists[(dists!=0)]
+    softmin = (relevant.softmax(dim=0)*relevant).sum()
+    dists_reflected = ((nz[:,:,None]+nz[:,None,:])**2).sum(dim=0).sqrt()
+    relevant2 = -5*dists_reflected[(dists_reflected<4*1.2)]/nz.shape[1]
+    softmin2 = (relevant2.softmax(dim=0)*relevant2).sum()
+    return softmin+softmin2
+def get_so3_farthest(k):
+    z = torch.nn.Parameter(torch.randn(4,k),requires_grad=True)
+    optim = torch.optim.Adam([z],lr=.3)
+    for i in range(500):
+        optim.zero_grad()
+        l = repelling_loss(z)
+        l.backward()
+        optim.step()
+        z.data /= (z.data**2).sum(dim=0,keepdim=True).sqrt()
+    return z.detach().T
+
 @export
 class SE3(SO3):
     embed_dim = 6
     rep_dim = 4
     q_dim = 0
-    def __init__(self,alpha=.5,per_point=True):
+    farthest = {k:get_so3_farthest(k) for k in [1,2,4,6]}
+    def __init__(self,alpha=.5,ld=False):
         super().__init__()
         self.alpha = alpha
-        self.per_point = per_point
+        self.low_discrepancy = ld
+        self.seq = LowDiscrepancyRotations() if ld else SO3
 
     def exp(self,w):
         theta = norm(w[...,:3],dim=-1)[...,None,None]
@@ -546,43 +613,21 @@ class SE3(SO3):
     
     def matrix2components(self,A): # A: (*,4,4)
         return torch.cat([uncross_matrix(A[...,:3,:3]),A[...,:3,3]],dim=-1)
-    # 
-    # def lifted_elems(self,pt,mask,nsamples,alpha=None):
-    #     d=self.rep_dim
-    #     # Sample stabilizer of the origin
-    #     #thetas = (torch.rand(*p.shape[:-1],num_samples).to(p.device)*2-1)*np.pi
-    #     q = torch.randn(*pt.shape[:-1],nsamples,4,device=pt.device,dtype=pt.dtype)
-    #     q /= norm(q,dim=-1).unsqueeze(-1)
-    #     theta_2 = torch.atan2(norm(q[...,1:],dim=-1),q[...,0]).unsqueeze(-1)
-    #     so3_elem = theta_2*q[...,1:]
-    #     # for _ in pt.shape[:-1]:
-    #     #     so3_elem=so3_elem.unsqueeze(0)
-    #     se3_elem = torch.cat([so3_elem,torch.zeros_like(so3_elem)],dim=-1)
-    #     R = self.exp(se3_elem)
-    #     # Get T(p)
-    #     T = torch.zeros(*pt.shape[:-1],nsamples,4,4,device=pt.device,dtype=pt.dtype)
-    #     T[...,:,:] = torch.eye(4,device=pt.device,dtype=pt.dtype)
-    #     T[...,:3,3] = pt.unsqueeze(-2)
-    #     a = self.log(T@R)
-    #     # Fold nsamples into the points
-    #     return a.reshape(*pt.shape[:-2],pt.shape[-2]*nsamples,6)
-
     
     def lifted_elems(self,pt,mask,nsamples):
         """ pt (bs,n,D) mask (bs,n), per_point specifies whether to
             use a different group element per atom in the molecule"""
-        #return farthest_lift(self,pt,mask,nsamples,alpha)
-        # same lifts for each point right now
         bs,n = pt.shape[:2]
-        if self.per_point:
-            q = torch.randn(bs,n,nsamples,4,device=pt.device,dtype=pt.dtype)
+        R = torch.zeros(bs,n,nsamples,4,4,device=pt.device,dtype=pt.dtype)
+        R[...,3,3] = 1
+        if self.low_discrepancy:
+            assert nsamples in self.farthest, "for low desc, supported ns = (1,2,4,6)"
+            rots = self.seq.sample(bs,n,1)
+            fRs = SO3.H2SO3(self.farthest[nsamples][None,None].to(device=pt.device,dtype=pt.dtype))
+            R[...,:3,:3] = (fRs.permute(0,1,2,4,3)@rots@fRs)
         else:
-            q = torch.randn(bs,1,nsamples,4,device=pt.device,dtype=pt.dtype)
-        q /= norm(q,dim=-1).unsqueeze(-1)
-        theta_2 = torch.atan2(norm(q[...,1:],dim=-1),q[...,0]).unsqueeze(-1)
-        so3_elem = theta_2*q[...,1:]
-        se3_elem = torch.cat([so3_elem,torch.zeros_like(so3_elem)],dim=-1)
-        R = self.exp(se3_elem)
+            R[...,:3,:3] = SO3.sample(bs,n,nsamples,device=pt.device,dtype=pt.dtype)
+        
         T = torch.zeros(bs,n,nsamples,4,4,device=pt.device,dtype=pt.dtype) # (bs,n,nsamples,4,4)
         T[...,:,:] = torch.eye(4,device=pt.device,dtype=pt.dtype)
         T[...,:3,3] = pt[:,:,None,:] # (bs,n,1,3)

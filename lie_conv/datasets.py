@@ -11,7 +11,7 @@ from torch.utils.data import Dataset
 from .utils import Named, export, Expression, FixedNumpySeed, RandomZrotation, GaussianNoise
 from oil.datasetup.datasets import EasyIMGDataset
 from lie_conv.hamiltonian import HamiltonianDynamics, KeplerH, SpringH
-from lie_conv.lieGroups import SO3
+from lie_conv.lieGroups import SO3, LowDiscrepancyRotations
 from torchdiffeq import odeint_adjoint as odeint
 from corm_data.utils import initialize_datasets
 import torchvision
@@ -516,15 +516,22 @@ class NBodyDynamics(DynamicsDataset):
         return HamiltonianDynamics(H, wgrad=False)
 
 
+
+
+
+
 class RandomRotation(nn.Module):
-    def __init__(self):
+    def __init__(self,low_disc=False):
+        """Samples using a low discrepancy sequence if True"""
         super().__init__()
+        self.sampler = LowDiscrepancyRotations() if low_disc else SO3
     def forward(self,x):
         if not self.training: return x
         coords,vals,mask = x
         # coords (bs,n,c)
-        Rs = SO3().sample(coords.shape[0],1,device=coords.device,dtype=coords.dtype)
+        Rs = self.sampler.sample(coords.shape[0],1,device=coords.device,dtype=coords.dtype)
         return ((Rs@coords.unsqueeze(-1)).squeeze(-1),vals,mask)
+
 
 default_qm9_dir = '~/datasets/molecular/qm9/'
 def QM9datasets(root_dir=default_qm9_dir):

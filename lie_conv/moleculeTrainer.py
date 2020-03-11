@@ -48,13 +48,13 @@ class MoleculeTrainer(Trainer):
 
 @export
 class MolecResNet(nn.Module,metaclass=Named):
-    def __init__(self, num_species, charge_scale=None, ds_frac=1,aug=False, num_outputs=1,
-                k=64, nbhd=np.inf, act="swish", bn=True, num_layers=4, 
+    def __init__(self, num_species, charge_scale=None, ds_frac=1,aug=True, num_outputs=1,
+                k=64, nbhd=np.inf, act="swish", bn=True, num_layers=4, low_disc=False,
                 mean=False, **kwargs):
         super().__init__()
         conv = lambda k1,k2: PointConv(k1, k2, nbhd=nbhd, ds_frac=ds_frac, bn=bn, 
                                    act=act, mean=mean, xyz_dim=3)
-        modules = [RandomRotation() if aug else nn.Sequential(),
+        modules = [RandomRotation(low_disc) if aug else nn.Sequential(),
             Pass(nn.Linear(3*num_species,k),dim=1), #embedding layer
             *[BottleBlock(k,k,conv,bn=bn,act=act) for _ in range(num_layers)],
             Pass(nn.Linear(k,k//2),dim=1),
@@ -78,11 +78,11 @@ class MolecResNet(nn.Module,metaclass=Named):
         
 @export 
 class MolecLieResNet(LieResNet):
-    def __init__(self, num_species, charge_scale, aug=False, alpha=.5,group=SE3, **kwargs):
+    def __init__(self, num_species, charge_scale, aug=True, alpha=.5,group=SE3,low_disc=False, **kwargs):
         super().__init__(chin=3*num_species,num_outputs=1,group=group,ds_frac=1,**kwargs)
         self.charge_scale = charge_scale
         self.aug =aug
-        self.random_rotate = RandomRotation()
+        self.random_rotate = RandomRotation(low_disc)
     def featurize(self, mb):
         charges = mb['charges'] / self.charge_scale
         c_vec = torch.stack([torch.ones_like(charges),charges,charges**2],dim=-1) # 
