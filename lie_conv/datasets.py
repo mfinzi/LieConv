@@ -11,7 +11,7 @@ from torch.utils.data import Dataset
 from .utils import Named, export, Expression, FixedNumpySeed, RandomZrotation, GaussianNoise
 from oil.datasetup.datasets import EasyIMGDataset
 from lie_conv.hamiltonian import HamiltonianDynamics, KeplerH, SpringH
-from lie_conv.lieGroups import SO3, LowDiscrepancyRotations
+from lie_conv.lieGroups import SO3, LowDiscrepancyRotations,LowDiscrepancySequence
 from torchdiffeq import odeint_adjoint as odeint
 from corm_data.utils import initialize_datasets
 import torchvision
@@ -519,7 +519,7 @@ class NBodyDynamics(DynamicsDataset):
 
 
 
-
+@export
 class RandomRotation(nn.Module):
     def __init__(self,low_disc=False):
         """Samples using a low discrepancy sequence if True"""
@@ -532,6 +532,28 @@ class RandomRotation(nn.Module):
         Rs = self.sampler.sample(coords.shape[0],1,device=coords.device,dtype=coords.dtype)
         return ((Rs@coords.unsqueeze(-1)).squeeze(-1),vals,mask)
 
+@export
+class SE3aug(nn.Module):
+    def __init__(self,low_disc=False,scale=.1):
+        """Samples using a low discrepancy sequence if True"""
+        super().__init__()
+        self.rot_sampler = LowDiscrepancyRotations() if low_disc else SO3
+        self.trans_sampler = LowDiscrepancySequence(d=3) if low_disc else None
+        self.scale=scale
+    def forward(self,x):
+        if not self.training: return x
+        coords,vals,mask = x
+        bs = coords.shape[0]
+        Rs = self.rot_sampler.sample(bs,1,device=coords.device,dtype=coords.dtype)
+        if self.trans_sampler is not None:
+            unifs = torch.from_numpy(self.trans_sampler.sample(bs))
+            unifs = unifs.to(device=coords.device,dtype=coords.dtype).reshape(bs,1,3)
+        else:
+            unifs = torch.rand(bs,1,3,device=coords.device,dtype=coords.dtype)
+        scale = coords.reshape(-1,3).std(0)
+        translations = self.scale*unifs*scale[None,None]
+        augmented_coords = (Rs@(coords+translations).unsqueeze(-1)).squeeze(-1)
+        return (augmented_coords,vals,mask)
 
 default_qm9_dir = '~/datasets/molecular/qm9/'
 def QM9datasets(root_dir=default_qm9_dir):

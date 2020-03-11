@@ -7,7 +7,7 @@ from oil.tuning.study import train_trial
 from oil.utils.parallel import try_multigpu_parallelize
 from lie_conv.datasets import QM9datasets
 from corm_data.collate import collate_fn
-from lie_conv.moleculeTrainer import MolecResNet, MoleculeTrainer
+from lie_conv.moleculeTrainer import MolecLieResNet, MoleculeTrainer
 from oil.datasetup.datasets import split_dataset
 import lie_conv.moleculeTrainer as moleculeTrainer
 import lie_conv.lieGroups as lieGroups
@@ -16,7 +16,7 @@ import copy
 
 
 def makeTrainer(*, task='homo', device='cuda', lr=1e-2, bs=100, num_epochs=500,
-                network=MolecResNet, net_config={'k':1536,'nbhd':100,'act':'swish',
+                network=MolecLieResNet, net_config={'k':1536,'nbhd':100,'act':'swish',
                 'bn':True,'aug':True,'mean':True,'num_layers':4}, recenter=False,
                 subsample=False, trainer_config={'log_dir':None,'log_suffix':''}):#,'log_args':{'timeFrac':1/4,'minPeriod':0}}):
     # Create Training set and model
