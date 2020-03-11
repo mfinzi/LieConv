@@ -108,9 +108,8 @@ class DecorrelateBN(nn.Module):
         #assert c==C, f"chs:{C} should be a multiple of G:{G}"
         flat_mask = mask.expand(x.shape[:-1]).reshape(1,-1).repeat((c,1)).view(G,-1)
         G_numel = flat_mask.sum(-1)[0]
-        x1_s=x1
 
-        mean1 = x1_s.sum(-1, keepdim=True)/G_numel
+        mean1 = x1.sum(-1, keepdim=True)/G_numel
 
         if self.num_batches_tracked==0:
             self.running_mean1.copy_(mean1.detach())
@@ -124,7 +123,7 @@ class DecorrelateBN(nn.Module):
 
         #step 2. calculate deconv@x1 = cov^(-0.5)@x1
         if self.training:
-            cov = x1_s @ x1_s.t() / G_numel + self.eps * torch.eye(G, dtype=x.dtype, device=x.device)
+            cov = x1 @ x1.t() / G_numel + self.eps * torch.eye(G, dtype=x.dtype, device=x.device)
             deconv = isqrt_newton_schulz_autograd(cov, self.n_iter)
 
         if self.num_batches_tracked==0:
