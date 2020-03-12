@@ -11,7 +11,7 @@ class LieGroup(object,metaclass=Named):
     embed_dim = NotImplemented # dimension that g is embedded into
     q_dim = NotImplemented # dimension which the quotient space X/G is embedded
     
-    def __init__(self,alpha=.5):
+    def __init__(self,alpha=.2):
         super().__init__()
         self.alpha=alpha
 
@@ -417,7 +417,7 @@ class SO3(LieGroup):
     embed_dim = 3
     rep_dim = 3
     q_dim = 1
-    def __init__(self,alpha=.5):
+    def __init__(self,alpha=.2):
         super().__init__()
         self.alpha = alpha
     
@@ -501,7 +501,7 @@ class SE3(SO3):
     embed_dim = 6
     rep_dim = 4
     q_dim = 0
-    def __init__(self,alpha=.5,per_point=True):
+    def __init__(self,alpha=.2,per_point=True):
         super().__init__()
         self.alpha = alpha
         self.per_point = per_point
