@@ -44,41 +44,10 @@ class MoleculeTrainer(Trainer):
     
     def logStuff(self,step,minibatch=None):
         super().logStuff(step,minibatch)                            
-
-
-@export
-class MolecResNet(nn.Module,metaclass=Named):
-    def __init__(self, num_species, charge_scale=None, ds_frac=1,aug=False, num_outputs=1,
-                k=64, nbhd=np.inf, act="swish", bn=True, num_layers=4, 
-                mean=False, **kwargs):
-        super().__init__()
-        conv = lambda k1,k2: PointConv(k1, k2, nbhd=nbhd, ds_frac=ds_frac, bn=bn, 
-                                   act=act, mean=mean, xyz_dim=3)
-        modules = [RandomRotation() if aug else nn.Sequential(),
-            Pass(nn.Linear(3*num_species,k),dim=1), #embedding layer
-            *[BottleBlock(k,k,conv,bn=bn,act=act) for _ in range(num_layers)],
-            Pass(nn.Linear(k,k//2),dim=1),
-            Pass(Swish() if act=='swish' else nn.ReLU(),dim=1),  
-            GlobalPool(mean=True),#mean), 
-            nn.Linear(k//2,num_outputs)]
-
-        self.net = nn.Sequential(*modules)
-        self.charge_scale = charge_scale
-
-    def featurize(self, mb):
-        charges = mb['charges'] / self.charge_scale
-        c_vec = torch.stack([torch.ones_like(charges),charges,charges**2],dim=-1) # 
-        one_hot_charges = (mb['one_hot'][:,:,:,None]*c_vec[:,:,None,:]).float().reshape(*charges.shape,-1)
-        atomic_coords = mb['positions'].float()
-        atom_mask = mb['charges']>0
-        return (atomic_coords, one_hot_charges, atom_mask) 
-    def forward(self, mb):
-        x = self.featurize(mb)
-        return self.net(x).squeeze(-1)
         
 @export 
 class MolecLieResNet(LieResNet):
-    def __init__(self, num_species, charge_scale, aug=False, alpha=.5,group=SE3, **kwargs):
+    def __init__(self, num_species, charge_scale, aug=False, group=SE3, **kwargs):
         super().__init__(chin=3*num_species,num_outputs=1,group=group,ds_frac=1,**kwargs)
         self.charge_scale = charge_scale
         self.aug =aug

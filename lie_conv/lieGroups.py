@@ -25,6 +25,7 @@ class LieGroup(object,metaclass=Named):
         raise NotImplementedError
     
     def BCH(self,a,b,order=2):
+        """ Baker Campbell Hausdorff formula"""
         assert order <= 4, "BCH only supported up to order 4"
         B = self.bracket
         z = a+b
@@ -79,7 +80,6 @@ class LieGroup(object,metaclass=Named):
     
     def expand_like(self,v,m,a):
         nsamples = a.shape[-2]//m.shape[-1]
-        #print(nsamples,a.shape,v.shape)
         expanded_v = v[...,None,:].repeat((1,)*len(v.shape[:-1])+(nsamples,1)) # (bs,n,c) -> (bs,n,1,c) -> (bs,n,ns,c)
         expanded_v = expanded_v.reshape(*a.shape[:2],v.shape[-1]) # (bs,n,ns,c) -> (bs,n*ns,c)
         expanded_mask = m[...,None].repeat((1,)*len(v.shape[:-1])+(nsamples,)) # (bs,n) -> (bs,n,ns)
@@ -92,11 +92,10 @@ class LieGroup(object,metaclass=Named):
             # ((bs,1,n,d) -> (bs,1,n,r,r))@((bs,n,1,d) -> (bs,n,1,r,r))
         vinv = self.exp(-a.unsqueeze(-3))
         u = self.exp(a.unsqueeze(-2))
-        #print(vinv.shape,u.shape)
         return self.log(vinv@u)
     
     def __str__(self):
-        return f"{self.__class__}({self.alpha})" if self.alpha!=.5 else f"{self.__class__}"
+        return f"{self.__class__}({self.alpha})" if self.alpha!=.2 else f"{self.__class__}"
     def __repr__(self):
         return str(self)
 
@@ -156,7 +155,6 @@ class T(LieGroup):
     def elems2pairs(self,a):
         deltas = a.unsqueeze(-2)-a.unsqueeze(-3)
         return deltas
-    
     # def distance(self,embedded_pairs):
     #     return norm(embedded_pairs,dim=-1)
 
