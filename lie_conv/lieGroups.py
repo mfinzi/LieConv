@@ -576,8 +576,8 @@ class SE3(SO3):
         else:
             q = torch.randn(bs,1,nsamples,4,device=pt.device,dtype=pt.dtype)
         q /= norm(q,dim=-1).unsqueeze(-1)
-        theta_2 = torch.atan2(norm(q[...,1:],dim=-1),q[...,0]).unsqueeze(-1)
-        so3_elem = theta_2*q[...,1:]
+        theta = 2*torch.atan2(norm(q[...,1:],dim=-1),q[...,0]).unsqueeze(-1)
+        so3_elem = theta*q[...,1:]
         se3_elem = torch.cat([so3_elem,torch.zeros_like(so3_elem)],dim=-1)
         R = self.exp(se3_elem)
         T = torch.zeros(bs,n,nsamples,4,4,device=pt.device,dtype=pt.dtype) # (bs,n,nsamples,4,4)

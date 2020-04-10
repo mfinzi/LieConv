@@ -188,7 +188,7 @@ class LieConv(PointConv):
             avg_fill = (navg/mask.sum(-1).float().mean()).cpu().item()
             self.r +=  self.coeff*(self.fill_frac - avg_fill)#self.fill_frac*n/navg.cpu().item()-1)
             self.fill_frac_ema += .1*(avg_fill-self.fill_frac_ema)
-        return nbhd_ab, nbhd_vals, nbhd_mask#(nbhd_mask&valid_within_ball.bool())W
+        return nbhd_ab, nbhd_vals, (nbhd_mask&valid_within_ball.bool())
     # def log_data(self,logger,step,name):
     #     logger.add_scalars('info', {f'{name}_fill':self.fill_frac_ema}, step=step)
     #     logger.add_scalars('info', {f'{name}_R':self.r}, step=step)
@@ -204,7 +204,7 @@ class LieConv(PointConv):
         nbhd_vals_m = torch.where(nbhd_mask.unsqueeze(-1),nbhd_vals,torch.zeros_like(nbhd_vals))
         #      (bs,m,nbhd,ci) -> (bs,m,ci,nbhd) @ (bs, m, nbhd, cmco/ci) -> (bs,m,ci,cmco/ci) -> (bs,m, cmco) 
         partial_convolved_vals = (nbhd_vals_m.transpose(-1,-2)@penult_kernel_weights_m).view(bs, m, -1)
-        convolved_vals = self.linear(partial_convolved_vals) #  (bs,m,cmco) -> (bs,m,co)
+        convolved_vals = self.linear(partial_convolved_vals)/np.sqrt(ci) #  (bs,m,cmco) -> (bs,m,co)
         if self.mean: convolved_vals /= nbhd_mask.sum(-1,keepdim=True).clamp(min=1)
         return convolved_vals
 

@@ -64,18 +64,34 @@ We visualize the architecture below.
 </p>
 
 ## QM9 Molecular Experiments
-To train the model on QM9 molecular property regression, run the script below with the `--task` specified by the strings from the first row of the following table. The table shows Test MAE for each of the tasks with the T(3) group trained for 1000 epochs which takes ~48 hrs on a single 1080Ti GPU. The `--aug` command specifies whether to use SO(3) data augmentation.
+To train the model on QM9 molecular property regression, run the script below with the `--task` specified by the strings from the first row of the following table. The table shows Test MAE for each of the tasks with the T(3) group trained for 500 epochs which takes ~24 hrs on a single 1080Ti GPU. The `--aug` command specifies whether to use SO(3) data augmentation.
 ```bash
-python examples/train_molec.py --task 'homo' --lr 3e-3 --aug True --num_epochs 1000 --num_layers 6 \
-  --log_suffix 'run_name_here' --network MolecLieResNet \
+# Trivial(3), T(3)
+python examples/train_molec.py --task 'homo' --lr 3e-3 --aug True --num_epochs 500 --num_layers 6 \
+  --log_suffix 'run_name_here' --network MolecLieResNet --save=True \
   --net_config "{'group':T(3),'fill':1.}"
 
+#
+ python examples/train_molec.py --task 'homo' --lr 3e-3 --aug True --num_epochs 500 --num_layers 6 \
+  --log_suffix 'so3_run_name' --network MolecLieResNet  --recenter=True --bs 75 --save=True \
+  --net_config "{'group':SO3(.2),'fill':3/4,'liftsamples':4, 'nbhd':25}" 
+
+
+python examples/train_molec.py --task 'homo' --lr 3e-3 --aug True --num_epochs 500 --num_layers 6 \
+--log_suffix 'se3_run_name' --network MolecLieResNet --recenter=True --bs 75 --save=True \
+--net_config "{'group':SE3(.2),'fill':3/4,'liftsamples':4, 'nbhd':25}"
 ```
 
-|Task|alpha|gap|homo|lumo|mu|Cv|G|H|r2|U|U0|zpve|
-|-----|-----|---|---|---|-----|-----|---|---|-----|---|---|---|
-|Units|bohr^3|meV|meV|meV|Debye|cal/mol K|meV|meV|bohr^2|meV|meV|meV|
-|MAE|.084|49|30|25|.032|.038|22|24|.800|19|19|2.280|
+||Task|alpha|gap|homo|lumo|mu|Cv|G|H|r2|U|U0|zpve|
+|--|-----|-----|---|---|---|-----|-----|---|---|-----|---|---|---|
+|Group|Units|bohr^3|meV|meV|meV|Debye|cal/mol K|meV|meV|bohr^2|meV|meV|meV|
+|T(3)|MAE|.084|49|30|25|.032|.038|22|24|.800|19|19|2.280|
+|SE3|MAE|||||||||||||
+
+Group Comparisons on HOMO task
+| Trivial | SO(3)  | T(3)  |  SE(3)   |
+|---------|------|------|-------|
+|-|59|30|26|
 
 
 ## RotMNIST Experiments
@@ -111,9 +127,9 @@ python examples/train_img.py --num_epochs=500 --trainer_config "{'log_suffix':'m
 
 Using the commands above we obtain the following test errors (%) for the different groups:
 
-| Trivial | T2   | SO2  | RxSO2 | SE2  |
-|---------|------|------|-------|------|
-| 1.57    | 1.50 | 1.40 | 1.33  | 1.39 |
+| Trivial | T1x  |  Rx  |  SQ   | T2   | SO2  | RxSO2 | SE2  |
+|---------|------|------|-------|------|------|-------|------|
+| 1.57    |------|------|-------| 1.50 | 1.40 | 1.33  | 1.39 |
 
 For the curious minded, we have added 5 additional groups Scaling:`Rx(2)`, Squeeze transformations:`SQ()`, Scaling and Squeezes:`RxSQ()`, Translation in x only:`Tx(2)`, and Translation in y only:`Ty(2)`.
 
