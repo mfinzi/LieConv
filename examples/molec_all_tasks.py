@@ -30,11 +30,11 @@ if __name__ == '__main__':
     config_spec = copy.deepcopy(makeTrainer.__kwdefaults__)
     config_spec.update({
         'num_epochs':500,
-        'net_config':{'fill':3/4,'nbhd':25,'group':T(3),'liftsamples':lambda cfg: (1,4)[bigG(cfg)]},
-        'lr':3e-3,'bs':lambda cfg: (200,75)[bigG(cfg)],'task':['alpha','gap','homo','lumo','mu','Cv','G','H','r2','U','U0','zpve'],
-        'recenter':True,'trainer_config':{'log_dir':'molec_all_tasks','log_suffix':lambda cfg:trial_name(cfg)},
+        'net_config':{'fill':1.,'nbhd':100,'group':T(3),'liftsamples':lambda cfg: (1,4)[bigG(cfg)]},
+        'lr':3e-3,'bs':lambda cfg: (100,75)[bigG(cfg)],'task':['alpha','gap','homo','lumo','mu','Cv','G','H','r2','U','U0','zpve'],
+        'recenter':True,'trainer_config':{'log_dir':'molec_all_tasks2','log_suffix':lambda cfg:trial_name(cfg)},
     })
     config_spec = argupdated_config(config_spec,namespace=(moleculeTrainer,lieGroups))
-    thestudy = Study(Trial,config_spec,study_name='molec_all_tasks')
+    thestudy = Study(Trial,config_spec,study_name='molec_all_tasks2')
     thestudy.run(num_trials=-1,ordered=True)
     print(thestudy.results_df())

@@ -137,7 +137,7 @@ class LieConv(PointConv):
     def __init__(self,*args,group=SE3,ds_frac=1,fill=1/3,cache=False,knn=False,**kwargs):
         kwargs.pop('xyz_dim',None)
         self.group = group
-        self.r = 2#radius
+        self.register_buffer('r',torch.tensor(2.))
         self.fill_frac = min(fill,1.)
         self.knn=knn
         super().__init__(*args,xyz_dim=group.embed_dim+2*group.q_dim,**kwargs)
@@ -204,7 +204,7 @@ class LieConv(PointConv):
         nbhd_vals_m = torch.where(nbhd_mask.unsqueeze(-1),nbhd_vals,torch.zeros_like(nbhd_vals))
         #      (bs,m,nbhd,ci) -> (bs,m,ci,nbhd) @ (bs, m, nbhd, cmco/ci) -> (bs,m,ci,cmco/ci) -> (bs,m, cmco) 
         partial_convolved_vals = (nbhd_vals_m.transpose(-1,-2)@penult_kernel_weights_m).view(bs, m, -1)
-        convolved_vals = self.linear(partial_convolved_vals)/np.sqrt(ci) #  (bs,m,cmco) -> (bs,m,co)
+        convolved_vals = self.linear(partial_convolved_vals) #  (bs,m,cmco) -> (bs,m,co)
         if self.mean: convolved_vals /= nbhd_mask.sum(-1,keepdim=True).clamp(min=1)
         return convolved_vals
 
@@ -290,7 +290,6 @@ class LieResNet(nn.Module,metaclass=Named):
         self.net = nn.Sequential(
             Pass(nn.Linear(chin,k[0]),dim=1), #embedding layer
             *[BottleBlock(k[i],k[i+1],conv,bn=bn,act=act,fill=fill[i]) for i in range(num_layers)],
-            #Pass(nn.Linear(k[-1],k[-1]//2),dim=1),
             MaskBatchNormNd(k[-1]) if bn else nn.Sequential(),
             Pass(Swish() if act=='swish' else nn.ReLU(),dim=1),
             Pass(nn.Linear(k[-1],num_outputs),dim=1),
