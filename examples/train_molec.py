@@ -49,7 +49,8 @@ def makeTrainer(*, task='homo', device='cuda', lr=3e-3, bs=75, num_epochs=500,ne
 Trial = train_trial(makeTrainer)
 if __name__=='__main__':
     defaults = copy.deepcopy(makeTrainer.__kwdefaults__)
-    defaults['trainer_config']['early_stop_metric']='Train_MAE'
+    defaults['trainer_config']['early_stop_metric']='valid_MAE'
+    defaults['save']=False
     print(Trial(argupdated_config(defaults,namespace=(moleculeTrainer,lieGroups))))
 
     # thestudy = Study(simpleTrial,argupdated_config(config_spec,namespace=__init__),

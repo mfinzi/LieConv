@@ -136,11 +136,11 @@ class FPSsubsample(nn.Module):
 class LieConv(PointConv):
     def __init__(self,*args,group=SE3,ds_frac=1,fill=1/3,cache=False,knn=False,**kwargs):
         kwargs.pop('xyz_dim',None)
+        super().__init__(*args,xyz_dim=group.embed_dim+2*group.q_dim,**kwargs)
         self.group = group
         self.register_buffer('r',torch.tensor(2.))
         self.fill_frac = min(fill,1.)
         self.knn=knn
-        super().__init__(*args,xyz_dim=group.embed_dim+2*group.q_dim,**kwargs)
         self.subsample = FPSsubsample(ds_frac,cache=cache,group=self.group)
         self.coeff = .5
         self.fill_frac_ema = fill
