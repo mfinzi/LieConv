@@ -4,7 +4,7 @@ from oil.model_trainers import Trainer
 from lie_conv.lieConv import PointConv, Pass, Swish, GlobalPool
 from lie_conv.lieConv import norm, LieResNet, BottleBlock
 from lie_conv.utils import export, Named
-from lie_conv.datasets import RandomRotation
+from lie_conv.datasets import SO3aug, SE3aug
 from lie_conv.lieGroups import SE3
 import numpy as np
 
@@ -51,7 +51,7 @@ class MolecLieResNet(LieResNet):
         super().__init__(chin=3*num_species,num_outputs=1,group=group,ds_frac=1,**kwargs)
         self.charge_scale = charge_scale
         self.aug =aug
-        self.random_rotate = RandomRotation()
+        self.random_rotate = SE3aug()#RandomRotation()
     def featurize(self, mb):
         charges = mb['charges'] / self.charge_scale
         c_vec = torch.stack([torch.ones_like(charges),charges,charges**2],dim=-1) # 

@@ -33,9 +33,9 @@ if __name__ == '__main__':
         'net_config':{'fill':lambda cfg: (1.,1/2)[bigG(cfg)],'nbhd':lambda cfg: (100,25)[bigG(cfg)],
         'group':T(3),'liftsamples':lambda cfg: (1,4)[bigG(cfg)]},'recenter':lambda cfg: bigG(cfg),
         'lr':3e-3,'bs':lambda cfg: (100,75)[bigG(cfg)],'task':['alpha','gap','homo','lumo','mu','Cv','G','H','r2','U','U0','zpve'],
-        'recenter':True,'trainer_config':{'log_dir':'molec_all_tasks2','log_suffix':lambda cfg:trial_name(cfg)},
+        'trainer_config':{'log_dir':'molec_all_tasks4','log_suffix':lambda cfg:trial_name(cfg)},
     })
     config_spec = argupdated_config(config_spec,namespace=(moleculeTrainer,lieGroups))
-    thestudy = Study(Trial,config_spec,study_name='molec_all_tasks3')
+    thestudy = Study(Trial,config_spec,study_name='molec_all_tasks4')
     thestudy.run(num_trials=-1,ordered=True)
     print(thestudy.results_df())

@@ -57,7 +57,7 @@ Dependencies will be automatically installed from the setup.py file with `pip in
 
 ## Architecture
 For all experiments, we use the same LieResNet architecture where LieConv replaces an ordinary convolutional layer. This network can act on inputs that are any collection of coordinates and values `{x_i,v_i}_{i=1}^N`, and is detailed below and implemented in [`lie_conv.lieconv`](/lie_conv/lieconv.py). We apply this same network architecture to RotMNIST dataset, the QM9 molecular property prediction dataset, and to the modeling of Hamiltonian dynamical systems.
-We visualize the architecture below:
+We visualize the architecture below. 
 
 <p align="center">
   <img src="https://user-images.githubusercontent.com/14368801/75301342-8bffc800-5808-11ea-9140-5b563556cf12.png" width=400>
@@ -66,32 +66,40 @@ We visualize the architecture below:
 ## QM9 Molecular Experiments
 To train the model on QM9 molecular property regression, run the script below with the `--task` specified by the strings from the first row of the following table. The table shows Test MAE for each of the tasks with the T(3) group trained for 500 epochs which takes ~24 hrs on a single 1080Ti GPU. The `--aug` command specifies whether to use SO(3) data augmentation.
 ```bash
-# Trivial(3), T(3)
+# T(3)
 python examples/train_molec.py --task 'homo' --lr 3e-3 --aug True --num_epochs 500 --num_layers 6 \
-  --log_suffix 'run_name_here' --network MolecLieResNet --save=True \
+  --log_suffix 't3_run_name' --network MolecLieResNet --save=True \
   --net_config "{'group':T(3),'fill':1.}"
 
-#
- python examples/train_molec.py --task 'homo' --lr 3e-3 --aug True --num_epochs 500 --num_layers 6 \
-  --log_suffix 'so3_run_name' --network MolecLieResNet  --recenter=True --bs 75 --save=True \
-  --net_config "{'group':SO3(.2),'fill':3/4,'liftsamples':4, 'nbhd':25}" 
-
-
+# SE3
 python examples/train_molec.py --task 'homo' --lr 3e-3 --aug True --num_epochs 500 --num_layers 6 \
 --log_suffix 'se3_run_name' --network MolecLieResNet --recenter=True --bs 75 --save=True \
---net_config "{'group':SE3(.2),'fill':3/4,'liftsamples':4, 'nbhd':25}"
+--net_config "{'group':SE3(.2),'fill':1/2,'liftsamples':4, 'nbhd':25}"
+
+# Trivial(3)
+python examples/train_molec.py --task 'homo' --lr 3e-3 --aug True --num_epochs 500 --num_layers 6 \
+  --log_suffix 'trivial_run_name' --network MolecLieResNet --save=True \
+  --net_config "{'group':Trivial(3),'fill':1.}"
+
+# SO3
+python examples/train_molec.py --task 'homo' --lr 3e-3 --aug True --num_epochs 500 --num_layers 6 \
+  --log_suffix 'so3_run_name' --network MolecLieResNet  --recenter=True --bs 75 --save=True \
+  --net_config "{'group':SO3(.2),'fill':1/2,'liftsamples':4, 'nbhd':25}" 
+
+
+
 ```
 
 ||Task|alpha|gap|homo|lumo|mu|Cv|G|H|r2|U|U0|zpve|
 |--|-----|-----|---|---|---|-----|-----|---|---|-----|---|---|---|
 |Group|Units|bohr^3|meV|meV|meV|Debye|cal/mol K|meV|meV|bohr^2|meV|meV|meV|
 |T(3)|MAE|.084|49|30|25|.032|.038|22|24|.800|19|19|2.280|
-|SE3|MAE|||||||||||||
+% |SE(3)|MAE|.091|45.6|27.8|25.5|.038|.039|||||||
 
 Group Comparisons on HOMO task
 | Trivial | SO(3)  | T(3)  |  SE(3)   |
 |---------|------|------|-------|
-|-|59|30|26|
+|31.7|65.4|29.4|26.8|
 
 
 ## RotMNIST Experiments

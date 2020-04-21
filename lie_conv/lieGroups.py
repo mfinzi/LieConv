@@ -363,11 +363,12 @@ class SE2(SO2):
         #TODO: correctly handle masking, unnecessary for image data
         d=self.rep_dim
         # Sample stabilizer of the origin
-        #thetas = (torch.rand(*p.shape[:-1],num_samples).to(p.device)*2-1)*np.pi
+        #thetas = (torch.rand(*p.shape[:-1],1).to(p.device)*2-1)*np.pi
         #thetas = torch.randn(nsamples)*2*np.pi - np.pi
-        thetas = torch.linspace(-np.pi,np.pi,nsamples+1)[1:] 
+        thetas = torch.linspace(-np.pi,np.pi,nsamples+1)[1:].to(pt.device)
         for _ in pt.shape[:-1]: # uniform on circle, but -pi and pi ar the same
             thetas=thetas.unsqueeze(0)
+        #thetas = thetas + torch.rand(*pt.shape[:-1],1).to(pt.device)*2*np.pi
         R = torch.zeros(*pt.shape[:-1],nsamples,d,d).to(pt.device)
         sin,cos = thetas.sin(),thetas.cos()
         R[...,0,0] = cos
@@ -432,15 +433,8 @@ class SO3(LieGroup):
         """ Computes components in terms of generators rx,ry,rz. Shape (*,3,3)"""
         trR = R[...,0,0]+R[...,1,1]+R[...,2,2]
         costheta = ((trR-1)/2).clamp(max=1,min=-1).unsqueeze(-1)
-        # eps = (1-costheta).clamp(0)
-        # rt2 = torch.tensor(2.,device=R.device,dtype=R.dtype).sqrt()
-        # taylor = rt2*eps.sqrt()*(1+(1/12)*eps+(3/160)*eps**2+(5/896)*eps**3)
-        # theta = torch.where(eps.abs()<1e-3,taylor,torch.acos(costheta))
         theta = torch.acos(costheta)
-        logR = uncross_matrix(R)/sinc(theta)
-        # I = torch.eye(3,device=R.device,dtype=R.dtype)
-        # small_log = self.matrix2components(R-I-(R-I)@(R-I)/2)
-        # torch.where(theta.abs()<1e-4,small_log,logR)
+        logR = uncross_matrix(R)*sinc_inv(theta)
         return logR
     
     def components2matrix(self,a): # a: (*,3)
@@ -476,17 +470,14 @@ class SO3(LieGroup):
         r = norm(pt,dim=-1).unsqueeze(-1) # (*,1)
         assert not torch.any(torch.isinf(pt)|torch.isnan(pt))
         p_on_sphere = pt/r.clamp(min=1e-5)
-        #assert not torch.any(torch.isinf(p_on_sphere)|torch.isnan(p_on_sphere))
         w = torch.cross(zhat,p_on_sphere[...,None,:].expand(*zhat.shape))
         sin = norm(w,dim=-1)
         cos = p_on_sphere[...,None,0]
-        #rr = r[...,None,:].expand(*zhat.shape[:-1],1)
         
         angle = torch.atan2(sin,cos).unsqueeze(-1) #cos angle
         Rp = self.exp(w*sinc_inv(angle))
         
         # Combine the rotations into one
-        #assert not torch.any(torch.isnan(Rp)|torch.isinf(Rp))
         A = self.log(Rp@Rz)  # Convert to lie algebra element
         assert not torch.any(torch.isnan(A)|torch.isinf(A))
         q = r[...,None,:].expand(*r.shape[:-1],nsamples,1) # The orbit identifier is \|x\|
@@ -520,13 +511,9 @@ class SE3(SO3):
         w = super().log(U[...,:3,:3])
         I = torch.eye(3,device=w.device,dtype=w.dtype)
         K = cross_matrix(w[...,:3])
-        #assert not torch.any(torch.isinf(K)), f"infs in K log {torch.isinf(K).sum()}"
-        
         theta = norm(w,dim=-1)[...,None,None]#%(2*np.pi)
         #theta[theta>np.pi] -= 2*np.pi
-        #assert not torch.any(torch.isinf(theta)), f"infs in theta log {torch.isinf(theta).sum()}"
         cosccc = coscc(theta)
-        #assert not torch.any(torch.isinf(cosccc)), f"infs in coscc log {torch.isinf(cosccc).sum()}"
         Vinv = I - K/2 + cosccc*(K@K)
         u = (Vinv@U[...,:3,3].unsqueeze(-1)).squeeze(-1)
         #assert not torch.any(torch.isnan(u)), f"nans in u log {torch.isnan(u).sum()}, {torch.where(torch.isnan(u))}"
@@ -541,28 +528,7 @@ class SE3(SO3):
     
     def matrix2components(self,A): # A: (*,4,4)
         return torch.cat([uncross_matrix(A[...,:3,:3]),A[...,:3,3]],dim=-1)
-    # 
-    # def lifted_elems(self,pt,mask,nsamples,alpha=None):
-    #     d=self.rep_dim
-    #     # Sample stabilizer of the origin
-    #     #thetas = (torch.rand(*p.shape[:-1],num_samples).to(p.device)*2-1)*np.pi
-    #     q = torch.randn(*pt.shape[:-1],nsamples,4,device=pt.device,dtype=pt.dtype)
-    #     q /= norm(q,dim=-1).unsqueeze(-1)
-    #     theta_2 = torch.atan2(norm(q[...,1:],dim=-1),q[...,0]).unsqueeze(-1)
-    #     so3_elem = theta_2*q[...,1:]
-    #     # for _ in pt.shape[:-1]:
-    #     #     so3_elem=so3_elem.unsqueeze(0)
-    #     se3_elem = torch.cat([so3_elem,torch.zeros_like(so3_elem)],dim=-1)
-    #     R = self.exp(se3_elem)
-    #     # Get T(p)
-    #     T = torch.zeros(*pt.shape[:-1],nsamples,4,4,device=pt.device,dtype=pt.dtype)
-    #     T[...,:,:] = torch.eye(4,device=pt.device,dtype=pt.dtype)
-    #     T[...,:3,3] = pt.unsqueeze(-2)
-    #     a = self.log(T@R)
-    #     # Fold nsamples into the points
-    #     return a.reshape(*pt.shape[:-2],pt.shape[-2]*nsamples,6)
 
-    
     def lifted_elems(self,pt,mask,nsamples):
         """ pt (bs,n,D) mask (bs,n), per_point specifies whether to
             use a different group element per atom in the molecule"""

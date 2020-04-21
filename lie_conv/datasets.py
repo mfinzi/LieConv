@@ -515,16 +515,33 @@ class NBodyDynamics(DynamicsDataset):
         H = lambda t, z: KeplerH(z, *sys_params)
         return HamiltonianDynamics(H, wgrad=False)
 
-
-class RandomRotation(nn.Module):
-    def __init__(self):
+@export
+class T3aug(nn.Module):
+    def __init__(self,scale=.5,train_only=True):
         super().__init__()
+        self.train_only = train_only
+        self.scale=scale
     def forward(self,x):
-        if not self.training: return x
+        if not self.training and self.train_only: return x
+        coords,vals,mask = x
+        bs = coords.shape[0]
+        unifs = torch.randn(bs,1,3,device=coords.device,dtype=coords.dtype)
+        translations = self.scale*unifs
+        return (coords+translations,vals,mask)
+@export
+class SO3aug(nn.Module):
+    def __init__(self,train_only=True):
+        super().__init__()
+        self.train_only = train_only
+    def forward(self,x):
+        if not self.training and self.train_only: return x
         coords,vals,mask = x
         # coords (bs,n,c)
         Rs = SO3().sample(coords.shape[0],1,device=coords.device,dtype=coords.dtype)
         return ((Rs@coords.unsqueeze(-1)).squeeze(-1),vals,mask)
+@export
+def SE3aug(scale=.5,train_only=True):
+    return nn.Sequential(T3aug(scale,train_only),SO3aug(train_only))
 
 default_qm9_dir = '~/datasets/molecular/qm9/'
 def QM9datasets(root_dir=default_qm9_dir):
