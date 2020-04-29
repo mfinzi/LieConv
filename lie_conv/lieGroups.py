@@ -368,7 +368,7 @@ class SE2(SO2):
         thetas = torch.linspace(-np.pi,np.pi,nsamples+1)[1:].to(pt.device)
         for _ in pt.shape[:-1]: # uniform on circle, but -pi and pi ar the same
             thetas=thetas.unsqueeze(0)
-        #thetas = thetas + torch.rand(*pt.shape[:-1],1).to(pt.device)*2*np.pi
+        thetas = thetas + torch.rand(*pt.shape[:-1],1).to(pt.device)*2*np.pi
         R = torch.zeros(*pt.shape[:-1],nsamples,d,d).to(pt.device)
         sin,cos = thetas.sin(),thetas.cos()
         R[...,0,0] = cos

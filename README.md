@@ -63,6 +63,46 @@ We visualize the architecture below.
   <img src="https://user-images.githubusercontent.com/14368801/75301342-8bffc800-5808-11ea-9140-5b563556cf12.png" width=400>
 </p>
 
+
+## RotMNIST Experiments
+
+We provide commands to run LieConv on the RotMNIST data for different groups. The commands share hyper-parameters except for the name of the group and the `--alpha` parameter that trades off between group and orbit distance in the neighborhoods. Aug specifies whether to use SO(2) data augmentation.
+
+```bash
+# Trivial
+python examples/train_img.py --num_epochs=500 --trainer_config "{'log_suffix':'mnistTrivial'}" \
+  --net_config "{'k':128,'total_ds':.1,'fill':.1,'nbhd':25,'group':Trivial(2)}" \
+  --bs 25 --lr .003 --split "{'train':12000}" --aug=True
+
+# T2
+python examples/train_img.py --num_epochs=500 --trainer_config "{'log_suffix':'mnistT2'}" \
+   --net_config "{'k':128,'total_ds':.1,'fill'.1,'nbhd':25,'group':T(2)}" \
+   --bs 25 --lr .003 --split "{'train':12000}" --aug=True
+
+# SO2
+python examples/train_img.py --num_epochs=500 --trainer_config "{'log_suffix':'mnistSO2'}" \
+  --net_config "{'k':128,'total_ds':.1,'fill':.1,'nbhd':25,'group':SO2(.2)}" \
+  --bs 25 --lr .003 --split "{'train':12000}" --aug=True
+
+#RxSO2
+python examples/train_img.py --num_epochs=500 --trainer_config "{'log_suffix':'mnistRxSO2'}" \
+  --net_config "{'k':128,'total_ds':.1,'fill':.1,'nbhd':25,'group':RxSO2(.3)}" \
+  --bs 25 --lr 3e-3 --split "{'train':12000}" --aug=True
+
+#SE2
+python examples/train_img.py --num_epochs=500 --trainer_config "{'log_suffix':'mnistSE2'}" \
+  --net_config "{'k':128,'total_ds':.1,'fill':.1,'nbhd':25,'group':SE2(.05),'liftsamples':2}" \
+  --bs 25 --lr 3e-3 --split "{'train':12000}" --aug=True 
+```
+
+Using the commands above we obtain the following test errors (%) for the different groups:
+
+| Trivial |  Tx  |  T2  | SO2  | RxSO2 | SE2  |
+|---------|------|------|------|-------|------|
+|   1.44  | 1.35 | 1.32 | 1.27 |  1.13 | 1.13 |
+
+For the curious minded, we have added 5 additional groups Scaling:`Rx(.3)`, Squeeze transformations:`SQ()`, Scaling and Squeezes:`RxSQ()`, Translation in x only:`Tx(2)`, and Translation in y only:`Ty(2)`.
+
 ## QM9 Molecular Experiments
 To train the model on QM9 molecular property regression, run the script below with the `--task` specified by the strings from the first row of the following table. The table shows Test MAE for each of the tasks with the T(3) group trained for 500 epochs which takes ~24 hrs on a single 1080Ti GPU. The `--aug` command specifies whether to use SO(3) data augmentation.
 ```bash
@@ -86,8 +126,6 @@ python examples/train_molec.py --task 'homo' --lr 3e-3 --aug True --num_epochs 5
   --log_suffix 'so3_run_name' --network MolecLieResNet  --recenter=True --bs 75 --save=True \
   --net_config "{'group':SO3(.2),'fill':1/2,'liftsamples':4, 'nbhd':25}" 
 
-
-
 ```
 
 ||Task|alpha|gap|homo|lumo|mu|Cv|G|H|r2|U|U0|zpve|
@@ -102,44 +140,6 @@ Group Comparisons on HOMO task
 |31.7|65.4|29.4|26.8|
 
 
-## RotMNIST Experiments
-
-We provide commands to run LieConv on the RotMNIST data for different groups. The commands share hyper-parameters except for the name of the group and the `--alpha` parameter that trades off between group and orbit distance in the neighborhoods. Aug specifies whether to use SO(2) data augmentation.
-
-```bash
-# Trivial
-python examples/train_img.py --num_epochs=500 --trainer_config "{'log_suffix':'mnistTrivial'}" \
-  --net_config "{'k':128,'total_ds':.1,'fill':1/15,'nbhd':25,'group':Trivial(2)}" \
-  --bs 25 --lr .003 --split "{'train':12000}" --aug=True
-
-# T2
-python examples/train_img.py --num_epochs=500 --trainer_config "{'log_suffix':'mnistT2'}" \
-   --net_config "{'k':128,'total_ds':.1,'fill':1/15,'nbhd':25,'group':T(2)}" \
-   --bs 25 --lr .003 --split "{'train':12000}" --aug=True
-
-# SO2
-python examples/train_img.py --num_epochs=500 --trainer_config "{'log_suffix':'mnistSO2'}" \
-  --net_config "{'k':128,'total_ds':.1,'fill':1/15,'nbhd':25,'group':SO2(.2)}" \
-  --bs 25 --lr .003 --split "{'train':12000}" --aug=True
-
-#RxSO2
-python examples/train_img.py --num_epochs=500 --trainer_config "{'log_suffix':'mnistRxSO2'}" \
-  --net_config "{'k':128,'total_ds':.1,'fill':1/15,'nbhd':25,'group':RxSO2(.3)}" \
-  --bs 25 --lr 3e-3 --split "{'train':12000}" --aug=True
-
-#SE2
-python examples/train_img.py --num_epochs=500 --trainer_config "{'log_suffix':'mnistSE2'}" \
-  --net_config "{'k':128,'total_ds':.1,'fill':1/15,'nbhd':25,'group':SE2(.2),'liftsamples':2}" \
-  --bs 25 --lr 3e-3 --split "{'train':12000}" --aug=True 
-```
-
-Using the commands above we obtain the following test errors (%) for the different groups:
-
-| Trivial | T1x  |  Rx  |  SQ   | T2   | SO2  | RxSO2 | SE2  |
-|---------|------|------|-------|------|------|-------|------|
-| 1.57    |------|------|-------| 1.50 | 1.40 | 1.33  | 1.39 |
-
-For the curious minded, we have added 5 additional groups Scaling:`Rx(2)`, Squeeze transformations:`SQ()`, Scaling and Squeezes:`RxSQ()`, Translation in x only:`Tx(2)`, and Translation in y only:`Ty(2)`.
 
 ## Spring Dynamics Experiments
 We apply our method in the modeling of a multi particle spring system, an example of a Hamiltonian system that conserves linear and angular momentum. To train using the HLieResNet model, simply run
