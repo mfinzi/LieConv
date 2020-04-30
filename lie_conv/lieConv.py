@@ -136,11 +136,11 @@ class FPSsubsample(nn.Module):
 class LieConv(PointConv):
     def __init__(self,*args,group=SE3,ds_frac=1,fill=1/3,cache=False,knn=False,**kwargs):
         kwargs.pop('xyz_dim',None)
+        super().__init__(*args,xyz_dim=group.embed_dim+2*group.q_dim,**kwargs)
         self.group = group
-        self.r = 2#radius
+        self.register_buffer('r',torch.tensor(2.))
         self.fill_frac = min(fill,1.)
         self.knn=knn
-        super().__init__(*args,xyz_dim=group.embed_dim+2*group.q_dim,**kwargs)
         self.subsample = FPSsubsample(ds_frac,cache=cache,group=self.group)
         self.coeff = .5
         self.fill_frac_ema = fill
@@ -188,7 +188,7 @@ class LieConv(PointConv):
             avg_fill = (navg/mask.sum(-1).float().mean()).cpu().item()
             self.r +=  self.coeff*(self.fill_frac - avg_fill)#self.fill_frac*n/navg.cpu().item()-1)
             self.fill_frac_ema += .1*(avg_fill-self.fill_frac_ema)
-        return nbhd_ab, nbhd_vals, nbhd_mask#(nbhd_mask&valid_within_ball.bool())W
+        return nbhd_ab, nbhd_vals, (nbhd_mask&valid_within_ball.bool())
     # def log_data(self,logger,step,name):
     #     logger.add_scalars('info', {f'{name}_fill':self.fill_frac_ema}, step=step)
     #     logger.add_scalars('info', {f'{name}_R':self.r}, step=step)
@@ -290,7 +290,6 @@ class LieResNet(nn.Module,metaclass=Named):
         self.net = nn.Sequential(
             Pass(nn.Linear(chin,k[0]),dim=1), #embedding layer
             *[BottleBlock(k[i],k[i+1],conv,bn=bn,act=act,fill=fill[i]) for i in range(num_layers)],
-            #Pass(nn.Linear(k[-1],k[-1]//2),dim=1),
             MaskBatchNormNd(k[-1]) if bn else nn.Sequential(),
             Pass(Swish() if act=='swish' else nn.ReLU(),dim=1),
             Pass(nn.Linear(k[-1],num_outputs),dim=1),
