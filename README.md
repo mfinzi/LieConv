@@ -97,11 +97,12 @@ python examples/train_img.py --num_epochs=500 --trainer_config "{'log_suffix':'m
 
 Using the commands above we obtain the following test errors (%) for the different groups:
 
-| Trivial |  Tx  |  T2  | SO2  | RxSO2 | SE2  |
-|---------|------|------|------|-------|------|
-|   1.44  | 1.35 | 1.32 | 1.27 |  1.13 | 1.13 |
+-------| Trivial |  Tx  |  T2  | SO2  | RxSO2 | SE2  |
+-------|---------|------|------|------|-------|------|
+SO2 Aug|   1.44  | 1.35 | 1.32 | 1.27 |  1.13 | 1.13 |
+No Aug |   1.60  | 2.64 | 2.34 | 1.26 |  1.27 | 1.13 |
 
-For the curious minded, we have added 5 additional groups Scaling:`Rx(.3)`, Squeeze transformations:`SQ()`, Scaling and Squeezes:`RxSQ()`, Translation in x only:`Tx(2)`, and Translation in y only:`Ty(2)`.
+For the curious minded, we have added 3 additional groups: Translation in x only:`Tx(2)`, and Translation in y only:`Ty(2)`, and scaling Scaling:`Rx(.1)`
 
 ## QM9 Molecular Experiments
 To train the model on QM9 molecular property regression, run the script below with the `--task` specified by the strings from the first row of the following table. The table shows Test MAE for each of the tasks with the T(3) group trained for 500 epochs which takes ~24 hrs on a single 1080Ti GPU. The `--aug` command specifies whether to use SO(3) data augmentation.
@@ -132,7 +133,6 @@ python examples/train_molec.py --task 'homo' --lr 3e-3 --aug True --num_epochs 5
 |--|-----|-----|---|---|---|-----|-----|---|---|-----|---|---|---|
 |Group|Units|bohr^3|meV|meV|meV|Debye|cal/mol K|meV|meV|bohr^2|meV|meV|meV|
 |T(3)|MAE|.084|49|30|25|.032|.038|22|24|.800|19|19|2.280|
-% |SE(3)|MAE|.091|45.6|27.8|25.5|.038|.039|||||||
 
 Group Comparisons on HOMO task
 | Trivial | SO(3)  | T(3)  |  SE(3)   |
