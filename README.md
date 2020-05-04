@@ -97,10 +97,9 @@ python examples/train_img.py --num_epochs=500 --trainer_config "{'log_suffix':'m
 
 Using the commands above we obtain the following test errors (%) for the different groups:
 
--------| Trivial |  Tx  |  T2  | SO2  | RxSO2 | SE2  |
--------|---------|------|------|------|-------|------|
-SO2 Aug|   1.44  | 1.35 | 1.32 | 1.27 |  1.13 | 1.13 |
-No Aug |   1.60  | 2.64 | 2.34 | 1.26 |  1.27 | 1.15 |
+| Trivial |  Tx  |  T2  | SO2  | RxSO2 | SE2  |
+|---------|------|------|------|-------|------|
+|   1.44  | 1.35 | 1.32 | 1.27 |  1.13 | 1.13 |
 
 For the curious minded, we have added 3 additional groups: Translation in x only:`Tx(2)`, and Translation in y only:`Ty(2)`, and scaling Scaling:`Rx(.1)`
 
