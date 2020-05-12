@@ -59,6 +59,7 @@ Dependencies will be automatically installed from the setup.py file with `pip in
 For all experiments, we use the same LieResNet architecture where LieConv replaces an ordinary convolutional layer. This network can act on inputs that are any collection of coordinates and values `{x_i,v_i}_{i=1}^N`, and is detailed below and implemented in [`lie_conv.lieconv`](/lie_conv/lieconv.py). We apply this same network architecture to RotMNIST dataset, the QM9 molecular property prediction dataset, and to the modeling of Hamiltonian dynamical systems.
 We visualize the architecture below. 
 
+[lie_conv_architecture_v8.pdf](https://github.com/mfinzi/LieConv/files/4613598/lie_conv_architecture_v8.pdf)
 <p align="center">
   <img src="https://user-images.githubusercontent.com/14368801/75301342-8bffc800-5808-11ea-9140-5b563556cf12.png" width=400>
 </p>
