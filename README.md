@@ -56,11 +56,10 @@ Dependencies will be automatically installed from the setup.py file with `pip in
 * (optional) [tensorboardX](https://github.com/lanpa/tensorboardX)
 
 ## Architecture
-For all experiments, we use the same LieResNet architecture where LieConv replaces an ordinary convolutional layer. This network can act on inputs that are any collection of coordinates and values `{x_i,v_i}_{i=1}^N`, and is detailed below and implemented in [`lie_conv.lieconv`](/lie_conv/lieconv.py). We apply this same network architecture to RotMNIST dataset, the QM9 molecular property prediction dataset, and to the modeling of Hamiltonian dynamical systems.
-We visualize the architecture below. 
+For all experiments, we use the same LieResNet architecture where LieConv replaces an ordinary convolutional layer. This network can act on inputs that are any collection of coordinates and values `{x_i,v_i}_{i=1}^N`, and is detailed below and implemented in [`lie_conv.lieconv`](/lie_conv/lieconv.py). We apply this same network architecture to RotMNIST dataset, the QM9 molecular property prediction dataset, and to the modeling of Hamiltonian dynamical systems. The architecture is shown below. 
 
 <p align="center">
-  <img src="https://user-images.githubusercontent.com/12687085/81642871-64290500-93f2-11ea-84b3-0649f0d1867d.png" width=400>
+  <img src="https://user-images.githubusercontent.com/12687085/81642962-9a668480-93f2-11ea-9177-616dfd1467f6.png" width=400>
 </p>
 
 
