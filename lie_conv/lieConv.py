@@ -148,7 +148,8 @@ class LieConv(PointConv):
     def extract_neighborhood(self,inp,query_indices):
         """ inputs: [pairs_ab (bs,n,n,d), inp_vals (bs,n,c), mask (bs,n), query_indices (bs,m)]
             outputs: [neighbor_ab (bs,m,nbhd,d), neighbor_vals (bs,m,nbhd,c)]"""
-        
+
+        # Subsample pairs_ab, inp_vals, mask to the query_indices
         pairs_ab, inp_vals, mask = inp
         if query_indices is not None:
             B = torch.arange(inp_vals.shape[0],device=inp_vals.device).long()[:,None]
@@ -161,43 +162,45 @@ class LieConv(PointConv):
         dists = self.group.distance(ab_at_query) #(bs,m,n,d) -> (bs,m,n)
         dists = torch.where(mask[:,None,:].expand(*dists.shape),dists,1e8*torch.ones_like(dists))
         k = min(self.nbhd,inp_vals.shape[1])
-        # NBHD: Subsampling within the ball
-        bs,m,n = dists.shape
+        
+        # Determine ids (and mask) for points sampled within neighborhood (A4)
         if self.knn: # NBHD: KNN
             nbhd_idx = torch.topk(dists,k,dim=-1,largest=False,sorted=False)[1] #(bs,m,nbhd)
             valid_within_ball = (nbhd_idx>-1)&mask[:,None,:]&mask_at_query[:,:,None]
             assert not torch.any(nbhd_idx>dists.shape[-1]), f"error with topk,\
                         nbhd{k} nans|inf{torch.any(torch.isnan(dists)|torch.isinf(dists))}"
         else: # NBHD: Sampled Distance Ball
+            bs,m,n = dists.shape
             within_ball = (dists < self.r)&mask[:,None,:]&mask_at_query[:,:,None] # (bs,m,n)
-            B = torch.arange(bs)[:,None,None]#.expand(*random_perm.shape)
-            M = torch.arange(m)[None,:,None]#.expand(*random_perm.shape)
-
+            B = torch.arange(bs)[:,None,None]
+            M = torch.arange(m)[None,:,None]
             noise = torch.zeros(bs,m,n,device=within_ball.device)
             noise.uniform_(0,1)
             valid_within_ball, nbhd_idx =torch.topk(within_ball+noise,k,dim=-1,largest=True,sorted=False)
             valid_within_ball = (valid_within_ball>1)
         
+        # Retrieve ab_pairs, values, and mask at the nbhd locations
         B = torch.arange(inp_vals.shape[0],device=inp_vals.device).long()[:,None,None].expand(*nbhd_idx.shape)
         M = torch.arange(ab_at_query.shape[1],device=inp_vals.device).long()[None,:,None].expand(*nbhd_idx.shape)
-        nbhd_ab = ab_at_query[B,M,nbhd_idx]  #(bs,m,n,d) -> (bs,m,nbhd,d)
-        nbhd_vals = vals_at_query[B,nbhd_idx]#(bs,n,c) -> (bs,m,nbhd,c)
-        nbhd_mask = mask[B,nbhd_idx]         #(bs,n) -> (bs,m,nbhd)
-        navg = (within_ball.float()).sum(-1).sum()/mask_at_query[:,:,None].sum()
-        if self.training:
+        nbhd_ab = ab_at_query[B,M,nbhd_idx]     #(bs,m,n,d) -> (bs,m,nbhd,d)
+        nbhd_vals = vals_at_query[B,nbhd_idx]   #(bs,n,c) -> (bs,m,nbhd,c)
+        nbhd_mask = mask[B,nbhd_idx]            #(bs,n) -> (bs,m,nbhd)
+        
+        if self.training and not self.knn: # update ball radius to match fraction fill_frac inside
+            navg = (within_ball.float()).sum(-1).sum()/mask_at_query[:,:,None].sum()
             avg_fill = (navg/mask.sum(-1).float().mean()).cpu().item()
-            self.r +=  self.coeff*(self.fill_frac - avg_fill)#self.fill_frac*n/navg.cpu().item()-1)
+            self.r +=  self.coeff*(self.fill_frac - avg_fill)
             self.fill_frac_ema += .1*(avg_fill-self.fill_frac_ema)
         return nbhd_ab, nbhd_vals, (nbhd_mask&valid_within_ball.bool())
+
     # def log_data(self,logger,step,name):
     #     logger.add_scalars('info', {f'{name}_fill':self.fill_frac_ema}, step=step)
     #     logger.add_scalars('info', {f'{name}_R':self.r}, step=step)
 
     def point_convolve(self,embedded_group_elems,nbhd_vals,nbhd_mask):
-        """ embedded_group_elems: (bs,m,nbhd,d)
-            nbhd_vals: (bs,m,nbhd,ci)
-            nbhd_mask: (bs,m,nbhd)
-            """
+        """ Uses generalized PointConv trick (A1) to compute convolution using pairwise elems (aij) and nbhd vals (vi).
+            inputs [embedded_group_elems (bs,m,nbhd,d), nbhd_vals (bs,m,nbhd,ci), nbhd_mask (bs,m,nbhd)]
+            outputs [convolved_vals (bs,m,co)]"""
         bs, m, nbhd, ci = nbhd_vals.shape  # (bs,m,nbhd,d) -> (bs,m,nbhd,cm*co/ci)
         _, penult_kernel_weights, _ = self.weightnet((None,embedded_group_elems,nbhd_mask))
         penult_kernel_weights_m = torch.where(nbhd_mask.unsqueeze(-1),penult_kernel_weights,torch.zeros_like(penult_kernel_weights))
@@ -205,12 +208,12 @@ class LieConv(PointConv):
         #      (bs,m,nbhd,ci) -> (bs,m,ci,nbhd) @ (bs, m, nbhd, cmco/ci) -> (bs,m,ci,cmco/ci) -> (bs,m, cmco) 
         partial_convolved_vals = (nbhd_vals_m.transpose(-1,-2)@penult_kernel_weights_m).view(bs, m, -1)
         convolved_vals = self.linear(partial_convolved_vals) #  (bs,m,cmco) -> (bs,m,co)
-        if self.mean: convolved_vals /= nbhd_mask.sum(-1,keepdim=True).clamp(min=1)
+        if self.mean: convolved_vals /= nbhd_mask.sum(-1,keepdim=True).clamp(min=1) # Divide by num points
         return convolved_vals
 
     def forward(self, inp):
-        """inputs: ([pairs_ab (bs,n,n,d)], [inp_vals (bs,n,ci)]), [query_indices (bs,m)]
-           outputs ([subbed_ab (bs,m,m,d)], [convolved_vals (bs,m,co)])"""
+        """inputs: [pairs_ab (bs,n,n,d)], [inp_vals (bs,n,ci)]), [query_indices (bs,m)]
+           outputs [subsampled_ab (bs,m,m,d)], [convolved_vals (bs,m,co)]"""
         sub_ab, sub_vals, sub_mask, query_indices = self.subsample(inp,withquery=True)
         nbhd_ab, nbhd_vals, nbhd_mask = self.extract_neighborhood(inp, query_indices)
         convolved_vals = self.point_convolve(nbhd_ab, nbhd_vals, nbhd_mask)
@@ -237,6 +240,7 @@ def LieConvBNrelu(in_channels,out_channels,bn=True,act='swish',**kwargs):
 
 
 class BottleBlock(nn.Module):
+    """ A bottlneck residual block"""
     def __init__(self,chin,chout,conv,bn=False,act='swish',fill=None):
         super().__init__()
         assert chin<= chout, f"unsupported channels chin{chin}, chout{chout}"
