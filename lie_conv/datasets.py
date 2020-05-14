@@ -15,7 +15,7 @@ from lie_conv.lieGroups import SO3
 from torchdiffeq import odeint_adjoint as odeint
 from corm_data.utils import initialize_datasets
 import torchvision
-
+from oil.utils.mytqdm import tqdm
 
 #ModelNet40 code adapted from 
 #https://github.com/DylanWusee/pointconv_pytorch/blob/master/data_utils/ModelNetDataLoader.py
@@ -561,6 +561,63 @@ def QM9datasets(root_dir=default_qm9_dir):
         torch.save((datasets, num_species, charge_scale),filename)
         return (datasets, num_species, charge_scale)
 
+# def pad_elems(data,i_start,i_finish):
+#     start_id = np.cumsum(data['N'])[i_start] - data['N'][i_start]
+
+#     out_positions = np.zeros((i_finish-i_start,29,3))
+#     out_charges = np.zeros((i_finish-i_start,29))
+#     for i in range(i_finish-i_start):
+#         n_atoms = data['N'][i+i_start]
+#         out_positions[i,:n_atoms,:] = data['R'][start_id:start_id+n_atoms,:]
+#         out_positions[i,:n_atoms] = data['Z'][start_id:start_id+n_atoms]
+#         start_id += n_atoms
+#     return out_positions,out_charges
+@export
+class QM9datasetV2(Dataset,metaclass=Named):
+    ignored_index = -100
+    num_species = 5
+    charge_scale = 9
+    charges = np.array([1,6,7,8,9])
+    tasks = ['mu','alpha','homo','lumo','gap','r2','zpve','U0','U','H','G','Cv']
+    default_root_dir = '~/datasets/molecular/qm9v2'
+    def __init__(self,root_dir=default_root_dir):
+        super().__init__()
+        root_dir = os.path.expanduser(root_dir)
+        fname = root_dir +"/qm9_eV_processed.tensor")
+        #
+        #data = np.load(root_dir+"/qm9_eV.npz")
+        #self.pad_data(data,root_dir)
+        if not os.path.exists(filename):
+            #os.makedirs(root_dir,exist_ok=True)
+            self.data = torch.load(os.path.expanduser("~/LieConv/corm_data/qm9_eV_processed.tensor"))
+        else:
+            self.data =  torch.load(filename)
+    def pad_data(self,data,root):
+        self.data = {}
+        Nmols = len(data['N'])
+        max_atoms = 29
+
+        self.data['positions'] = np.zeros((Nmols,max_atoms,3))
+        self.data['charges'] = np.zeros((Nmols,max_atoms))
+        self.data['one_hot'] = np.zeros((Nmols,max_atoms,self.num_species))
+        start_id = 0
+        for i in tqdm(range(Nmols),desc="converting QM9 data format"):
+            n_atoms = data['N'][i]
+            self.data['positions'][i,:n_atoms,:] = data['R'][start_id:start_id+n_atoms,:]
+            self.data['charges'][i,:n_atoms] = data['Z'][start_id:start_id+n_atoms]
+            start_id += n_atoms
+        self.data['one_hot'][:,:,:] = (self.data['charges'][:,:,None]==self.charges)
+        for task in self.tasks:
+            self.data[task] = data[task]
+        self.data['num_atoms'] = data['N']
+        self.data['index'] = data['id']
+        for key,val in self.data.items():
+            self.data[key] = torch.from_numpy(val).float()
+        torch.save(self.data,root+"/qm9_eV_processed.tensor")
+    def __getitem__(self,index):
+        return {key: value[index] for key,value in self.data.items()}
+    def __len__(self):
+        return self.data['positions'].shape[0]
 
 # class SchPackQM9(Dataset,metaclass=Named):
 #     default_qm9_dir = '~/datasets/molecular/qm9/'

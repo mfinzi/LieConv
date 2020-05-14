@@ -5,7 +5,7 @@ from oil.utils.utils import LoaderTo, islice, cosLr, FixedNumpySeed
 from oil.tuning.args import argupdated_config
 from oil.tuning.study import train_trial
 from oil.utils.parallel import try_multigpu_parallelize
-from lie_conv.datasets import QM9datasets
+from lie_conv.datasets import QM9datasets,QM9datasetV2
 from corm_data.collate import collate_fn
 from lie_conv.moleculeTrainer import MolecLieResNet, MoleculeTrainer
 from oil.datasetup.datasets import split_dataset
@@ -22,16 +22,17 @@ def makeTrainer(*, task='homo', device='cuda', lr=3e-3, bs=75, num_epochs=500,ne
     # Create Training set and model
     device = torch.device(device)
     with FixedNumpySeed(0):
-        datasets, num_species, charge_scale = QM9datasets()
+        ds = QM9datasetV2()
+        datasets = split_dataset(ds,{'train':100000,'valid':-1,'test':13083})
         if subsample: datasets.update(split_dataset(datasets['train'],{'train':subsample}))
-    ds_stats = datasets['train'].stats[task]
+    ds_stats = None# datasets['train'].stats[task]
     if recenter:
         m = datasets['train'].data['charges']>0
         pos = datasets['train'].data['positions'][m]
         mean,std = pos.mean(dim=0),pos.std()
         for ds in datasets.values():
             ds.data['positions'] = (ds.data['positions']-mean[None,None,:])/std
-    model = network(num_species,charge_scale,**net_config).to(device)
+    model = network(datasets['train'].num_species,datasets['train'].charge_scale,**net_config).to(device)
     model,bs = try_multigpu_parallelize(model,bs)
     # Create train and Val(Test) dataloaders and move elems to gpu
     dataloaders = {key:LoaderTo(DataLoader(dataset,batch_size=bs,num_workers=0,

@@ -65,3 +65,25 @@ class MolecLieResNet(LieResNet):
             x = self.featurize(mb)
             x = self.random_rotate(x) if self.aug else x
         return super().forward(x).squeeze(-1)
+
+
+@export 
+class MolecLieResNetV2(LieResNet):
+    def __init__(self, num_species, charge_scale, aug=False, group=SE3, **kwargs):
+        super().__init__(chin=3*num_species,num_outputs=1,group=group,ds_frac=1,**kwargs)
+        self.charge_scale = charge_scale
+        self.aug =aug
+        self.random_rotate = SE3aug()#RandomRotation()
+    def featurize(self, mb):
+        charges = mb['charges'] / self.charge_scale
+        c_vec = torch.stack([torch.ones_like(charges),charges,charges**2],dim=-1) # 
+        one_hot_charges = (mb['one_hot'][:,:,:,None]*c_vec[:,:,None,:]).float().reshape(*charges.shape,-1)
+        atomic_coords = mb['positions'].float()
+        atom_mask = mb['charges']>0
+        #print('orig_mask',atom_mask[0].sum())
+        return (atomic_coords, one_hot_charges, atom_mask)
+    def forward(self,mb):
+        with torch.no_grad():
+            x = self.featurize(mb)
+            x = self.random_rotate(x) if self.aug else x
+        return super().forward(x).squeeze(-1)
