@@ -7,61 +7,56 @@ def norm(x,dim):
     return (x**2).sum(dim=dim).sqrt()
 
 class LieGroup(object,metaclass=Named):
-    rep_dim = NotImplemented # dimension on which G acts
-    embed_dim = NotImplemented # dimension that g is embedded into
-    q_dim = NotImplemented # dimension which the quotient space X/G is embedded
+    """ The abstract Lie Group requiring additional implementation of exp,log, and lifted_elems
+        to use as a new group for LieConv. rep_dim,lie_dim,q_dim should additionally be specified."""
+    rep_dim = NotImplemented # dimension on which G acts. (e.g. 2 for SO(2))
+    lie_dim = NotImplemented # dimension of the lie algebra of G. (e.g. 1 for SO(2))
+    q_dim = NotImplemented # dimension which the quotient space X/G is embedded. (e.g. 1 for SO(2) acting on R2)
     
     def __init__(self,alpha=.2):
         super().__init__()
         self.alpha=alpha
 
     def exp(self,a):
+        """ Computes (matrix) exponential Lie algebra elements (in a given basis).
+            ie out = exp(\sum_i a_i A_i) where A_i are the exponential generators of G.
+            Input: [a (*,lie_dim)] where * is arbitrarily shaped
+            Output: [exp(a) (*,rep_dim,rep_dim)] returns the matrix for each."""
         raise NotImplementedError
     
     def log(self,u):
+        """ Computes (matrix) logarithm for collection of matrices and converts to Lie algebra basis.
+            Input [u (*,rep_dim,rep_dim)]
+            Output [coeffs of log(u) in basis (*,d)] """
         raise NotImplementedError
     
-    def lifted_elems(self,xyz,mask,nsamples):
+    def lifted_elems(self,xyz,nsamples):
+        """ Takes in coordinates xyz and lifts them to Lie algebra elements a (in basis)
+            and embedded orbit identifiers q. For groups where lifting is multivalued
+            specify nsamples>1 as number of lifts to do for each point.
+            Inputs: [xyz (*,n,rep_dim)],[mask (*,n)], [mask (int)]
+            Outputs: [a (*,n*nsamples,lie_dim)],[q (*,n*nsamples,q_dim)]"""
         raise NotImplementedError
-    
-    def BCH(self,a,b,order=2):
-        """ Baker Campbell Hausdorff formula"""
-        assert order <= 4, "BCH only supported up to order 4"
-        B = self.bracket
-        z = a+b
-        if order==1: return z
-        ab = B(a,b)
-        z += (1/2)*ab
-        if order==2: return z
-        aab = B(a,ab)
-        bba = B(b,-ab)
-        z += (1/12)*(aab+bba)
-        if order==3: return z
-        baab = B(b,aab)
-        z += -(1/24)*baab
-        return z
-    
-    def bracket(self,a,b):
-        """Computes the lie bracket between a and b, assumes a,b expressed as vectors"""
-        A = self.components2matrix(a)
-        B = self.components2matrix(b)
-        return self.matrix2components(A@B-B@A)
     
     def inv(self,g):
+        """ We can compute the inverse of elements g (*,rep_dim,rep_dim) as exp(-log(g))"""
         return self.exp(-self.log(g))
 
     def distance(self,abq_pairs):
-        ab_dist = norm(abq_pairs[...,:self.embed_dim],dim=-1)
-        qa = abq_pairs[...,self.embed_dim:self.embed_dim+self.q_dim]
-        qb = abq_pairs[...,self.embed_dim+self.q_dim:self.embed_dim+2*self.q_dim]
+        """ Compute distance of size (*) from [abq_pairs (*,lie_dim+2*q_dim)].
+            Simply computes alpha*norm(log(v^{-1}u)) +(1-alpha)*norm(q_a-q_b),
+            combined distance from group element distance and orbit distance."""
+        ab_dist = norm(abq_pairs[...,:self.lie_dim],dim=-1)
+        qa = abq_pairs[...,self.lie_dim:self.lie_dim+self.q_dim]
+        qb = abq_pairs[...,self.lie_dim+self.q_dim:self.lie_dim+2*self.q_dim]
         qa_qb_dist = norm(qa-qb,dim=-1)
         return ab_dist*self.alpha + (1-self.alpha)*qa_qb_dist
     
     def lift(self,x,nsamples,**kwargs):
         """assumes p has shape (*,n,2), vals has shape (*,n,c), mask has shape (*,n)
-            returns (a,v) with shapes [(*,n*nsamples,embed_dim),(*,n*nsamples,c)"""
+            returns (a,v) with shapes [(*,n*nsamples,lie_dim),(*,n*nsamples,c)"""
         p,v,m = x
-        expanded_a,expanded_q = self.lifted_elems(p,m,nsamples,**kwargs) # (bs,n*ns,d), (bs,n*ns,qd)
+        expanded_a,expanded_q = self.lifted_elems(p,nsamples,**kwargs) # (bs,n*ns,d), (bs,n*ns,qd)
         nsamples = expanded_a.shape[-2]//m.shape[-1]
         # expand v and mask like q
         expanded_v = v[...,None,:].repeat((1,)*len(v.shape[:-1])+(nsamples,1)) # (bs,n,c) -> (bs,n,1,c) -> (bs,n,ns,c)
@@ -87,13 +82,35 @@ class LieGroup(object,metaclass=Named):
         return expanded_v, expanded_mask
     
     def elems2pairs(self,a):
-        """ inputs: [a (bs,n,d)]
-            outputs: [pairs_ab (bs,n,n,d)]"""
-            # ((bs,1,n,d) -> (bs,1,n,r,r))@((bs,n,1,d) -> (bs,n,1,r,r))
+        """ computes log(e^-b e^a) for all a b pairs along n dimension of input.
+            inputs: [a (bs,n,d)] outputs: [pairs_ab (bs,n,n,d)] """
         vinv = self.exp(-a.unsqueeze(-3))
         u = self.exp(a.unsqueeze(-2))
-        return self.log(vinv@u)
+        return self.log(vinv@u)    # ((bs,1,n,d) -> (bs,1,n,r,r))@((bs,n,1,d) -> (bs,n,1,r,r))
+
+    def BCH(self,a,b,order=2):
+        """ Baker Campbell Hausdorff formula"""
+        assert order <= 4, "BCH only supported up to order 4"
+        B = self.bracket
+        z = a+b
+        if order==1: return z
+        ab = B(a,b)
+        z += (1/2)*ab
+        if order==2: return z
+        aab = B(a,ab)
+        bba = B(b,-ab)
+        z += (1/12)*(aab+bba)
+        if order==3: return z
+        baab = B(b,aab)
+        z += -(1/24)*baab
+        return z
     
+    def bracket(self,a,b):
+        """Computes the lie bracket between a and b, assumes a,b expressed as vectors"""
+        A = self.components2matrix(a)
+        B = self.components2matrix(b)
+        return self.matrix2components(A@B-B@A)
+
     def __str__(self):
         return f"{self.__class__}({self.alpha})" if self.alpha!=.2 else f"{self.__class__}"
     def __repr__(self):
@@ -106,8 +123,8 @@ def LieSubGroup(liegroup,generators):
         
         def __init__(self,*args,**kwargs):
             super().__init__(*args,**kwargs)
-            self.orig_dim = self.embed_dim
-            self.embed_dim = len(generators)
+            self.orig_dim = self.lie_dim
+            self.lie_dim = len(generators)
             self.q_dim = self.orig_dim-len(generators)
 
         def exp(self,a_small):
@@ -127,10 +144,10 @@ def LieSubGroup(liegroup,generators):
         
         def matrix2components(self,A):
             return super().matrix2components(A)[...,generators]
-        def lifted_elems(self,pt,mask=None,nsamples=1):
+        def lifted_elems(self,pt,nsamples=1):
             """ pt (bs,n,D) mask (bs,n), per_point specifies whether to
                 use a different group element per atom in the molecule"""
-            a_full,q = super().lifted_elems(pt,mask,nsamples)
+            a_full,q = super().lifted_elems(pt,nsamples)
             a_sub = a_full[...,generators]
             complement_generators = list(set(range(self.orig_dim))-set(generators))
             new_qs = a_full[...,complement_generators]
@@ -147,9 +164,10 @@ class T(LieGroup):
         super().__init__()
         self.q_dim = 0
         self.rep_dim = k # dimension on which G acts
-        self.embed_dim = k # dimension that g is embedded into
+        self.lie_dim = k # dimension that g is embedded into
 
-    def lifted_elems(self,xyz,mask,nsamples,**kwargs):
+    def lifted_elems(self,xyz,nsamples,**kwargs):
+        assert nsamples==1, "Abelian group, no need for nsamples"
         return xyz,None
     
     def elems2pairs(self,a):
@@ -159,6 +177,7 @@ class T(LieGroup):
     #     return norm(embedded_pairs,dim=-1)
 
 # Helper functions for analytic exponential maps. Uses taylor expansions near x=0
+# See http://ethaneade.com/lie_groups.pdf for derivations.
 thresh =7e-2
 def sinc(x):
     """ sin(x)/x """
@@ -192,13 +211,11 @@ def sinc_inv(x):
     assert not torch.any(torch.isinf(texpand)|torch.isnan(texpand)),'sincinv texpand inf'+torch.any(torch.isinf(texpand))
     return torch.where(usetaylor,texpand,x/x.sin())
 
-
-
 ## Lie Groups acting on R2
 
 @export
 class SO2(LieGroup):
-    embed_dim = 1
+    lie_dim = 1
     rep_dim = 2
     q_dim = 1
     def exp(self,a):
@@ -212,7 +229,7 @@ class SO2(LieGroup):
         return R
     def log(self,R):
         return torch.atan2(R[...,1,0]-R[...,0,1],R[...,0,0]+R[...,1,1])[...,None]
-    def components2matrix(self,a): # a: (*,embed_dim)
+    def components2matrix(self,a): # a: (*,lie_dim)
         A = torch.zeros(*a.shape[:-1],2,2,device=a.device,dtype=a.dtype)
         A[...,0,1] = -a[...,0]
         A[...,1,0] = a[...,0]
@@ -221,11 +238,10 @@ class SO2(LieGroup):
         a = torch.zeros(*A.shape[:-1],1,device=A.device,dtype=A.dtype)
         a[...,:1] = (A[...,1,:1]-A[...,:1,1])/2
         return a
-    def lifted_elems(self,pt,mask=None,nsamples=1):
+    def lifted_elems(self,pt,nsamples=1):
         """ pt (bs,n,D) mask (bs,n), per_point specifies whether to
             use a different group element per atom in the molecule"""
-        #return farthest_lift(self,pt,mask,nsamples,alpha)
-        # same lifts for each point right now
+        assert nsamples==1, "Abelian group, no need for nsamples"
         bs,n,D = pt.shape[:3] # origin = [1,0]
         assert D==2, "Lifting from R^2 to SO(2) supported only"
         r = norm(pt,dim=-1).unsqueeze(-1)
@@ -236,10 +252,11 @@ class SO2(LieGroup):
         ra = abq_pairs[...,1]
         rb = abq_pairs[...,2]
         return angle_pairs.abs()*self.alpha + (1-self.alpha)*(ra-rb).abs()/(ra+rb+1e-3)
+
 @export
 class RxSO2(LieGroup):
     """ Rotation scaling group. Equivalent to log polar convolution."""
-    embed_dim=2
+    lie_dim=2
     rep_dim=2
     q_dim=0
     def exp(self,a):
@@ -258,7 +275,7 @@ class RxSO2(LieGroup):
         theta = torch.atan2(rsin,rcos)
         r = (rsin**2+rcos**2).sqrt()
         return torch.stack([r.log(),theta],dim=-1)
-    def lifted_elems(self,pt,mask=None,nsamples=1):
+    def lifted_elems(self,pt,nsamples=1):
         bs,n,D = pt.shape[:3] # origin = [1,0]
         assert D==2, "Lifting from R^2 to RxSO(2) supported only"
         r = norm(pt,dim=-1).unsqueeze(-1)
@@ -273,27 +290,16 @@ class RxSO2(LieGroup):
 class RxSQ(LieGroup):
     """ Rotation Squeeze group. Equivalent to log hyperbolic coordinate convolution.
         Acts on the positive orthant R2+."""
-    embed_dim=2
+    lie_dim=2
     rep_dim=2
     q_dim=0
     def exp(self,a):
-        logr = a[...,1]
-        R = torch.zeros(*a.shape[:-1],2,2,device=a.device,dtype=a.dtype)
-        rsin = logr.exp()*a[...,0].sin()
-        rcos = logr.exp()*a[...,0].cos()
-        R[...,0,0] = rcos
-        R[...,1,1] = rcos
-        R[...,0,1] = -rsin
-        R[...,1,0] = rsin
-        return R
+        raise NotImplementedError
     def log(self,R):
-        rsin = (R[...,1,0]-R[...,0,1])/2
-        rcos = (R[...,0,0]+R[...,1,1])/2
-        theta = torch.atan2(rsin,rcos)
-        r = (rsin**2+rcos**2).sqrt()
-        return torch.stack([theta,r.log()],dim=-1)
-    def lifted_elems(self,pt,mask=None,nsamples=1):
+        raise NotImplementedError
+    def lifted_elems(self,pt,nsamples=1):
         bs,n,D = pt.shape[:3] # origin = [1,0]
+        assert nsamples==1, "Abelian group, no need for nsamples"
         assert D==2, "Lifting from R^2 to RxSQ supported only"
         lxy = pt.log()
         logs = (lxy[...,0]-lxy[...,1])/2
@@ -303,6 +309,7 @@ class RxSQ(LieGroup):
         s_dist = abq_pairs[...,1].abs()
         r_dist = abq_pairs[...,0].abs()
         return s_dist*self.alpha + (1-self.alpha)*r_dist
+        
 @export
 class Rx(LieSubGroup(RxSO2,(0,))): pass
 @export
@@ -314,7 +321,7 @@ class Ty(LieSubGroup(T,(1,))): pass
 
 @export
 class SE2(SO2):
-    embed_dim = 3
+    lie_dim = 3
     rep_dim = 3
     q_dim = 0
     def log(self,g):
@@ -359,7 +366,7 @@ class SE2(SO2):
         a[...,0] = (A[...,1,0]-A[...,0,1])/2
         return a
     
-    def lifted_elems(self,pt,mask=None,nsamples=1):
+    def lifted_elems(self,pt,nsamples=1):
         #TODO: correctly handle masking, unnecessary for image data
         d=self.rep_dim
         # Sample stabilizer of the origin
@@ -413,7 +420,7 @@ def uncross_matrix(K):
 
 @export
 class SO3(LieGroup):
-    embed_dim = 3
+    lie_dim = 3
     rep_dim = 3
     q_dim = 1
     def __init__(self,alpha=.2):
@@ -451,7 +458,7 @@ class SO3(LieGroup):
         R = self.exp(so3_elem)
         return R
     
-    def lifted_elems(self,pt,mask,nsamples,**kwargs):
+    def lifted_elems(self,pt,nsamples,**kwargs):
         """ Lifting from R^3 -> SO(3) , R^3/SO(3). pt shape (*,3)
             First get a random rotation Rz about [1,0,0] by the appropriate angle
             and then rotate from [1,0,0] to p/\|p\| with Rp  to get RpRz and then
@@ -487,7 +494,7 @@ class SO3(LieGroup):
 
 @export
 class SE3(SO3):
-    embed_dim = 6
+    lie_dim = 6
     rep_dim = 4
     q_dim = 0
     def __init__(self,alpha=.2,per_point=True):
@@ -529,7 +536,7 @@ class SE3(SO3):
     def matrix2components(self,A): # A: (*,4,4)
         return torch.cat([uncross_matrix(A[...,:3,:3]),A[...,:3,3]],dim=-1)
 
-    def lifted_elems(self,pt,mask,nsamples):
+    def lifted_elems(self,pt,nsamples):
         """ pt (bs,n,D) mask (bs,n), per_point specifies whether to
             use a different group element per atom in the molecule"""
         #return farthest_lift(self,pt,mask,nsamples,alpha)
@@ -554,53 +561,16 @@ class SE3(SO3):
         dist_trans = norm(abq_pairs[...,3:],dim=-1)
         return dist_rot*self.alpha + (1-self.alpha)*dist_trans
 
-def farthest_lift(self,pt,mask,nsamples,alpha=.5):
-    nlift = 10
-    bs,n = pt.shape[:2]
-    d=self.embed_dim
-    # Sample stabilizer of the origin
-    #thetas = (torch.rand(*p.shape[:-1],num_samples).to(p.device)*2-1)*np.pi
-    
-    picked_group_elems = torch.zeros(bs,n,nsamples,d,device=pt.device,dtype=pt.dtype)
-    picked_mask = picked_group_elems[...,:1]>1 #(bs,n,nsamples,1) all False
-    # Randomly pick for the first point
-    
-    for i in range(nsamples):
-        for j in np.random.permutation(n):
-            q = torch.randn(bs,nlift,4,device=pt.device,dtype=pt.dtype)
-            q /= norm(q,dim=-1).unsqueeze(-1)
-            theta_2 = torch.atan2(norm(q[...,1:],dim=-1),q[...,0]).unsqueeze(-1)
-            so3_elem = theta_2*q[...,1:]
-            se3_elem = torch.cat([so3_elem,torch.zeros_like(so3_elem)],dim=-1)
-            R = self.exp(se3_elem)
-            # Get T(p)
-            T = torch.zeros(*q.shape,4,device=pt.device,dtype=pt.dtype) # (bs,nlift,4,4)
-            T[...,:,:] = torch.eye(4,device=pt.device,dtype=pt.dtype)
-            T[...,:3,3] = pt[:,j,None,:] # (bs,1,3)
-            a = self.log(T@R)#@R) # bs, nlift, 6
-            #assert not torch.any(torch.isnan(a)), f"nans in a {torch.isnan(a).sum()}"
-            #                           (bs,n,nsamples,1,d) x (bs,1,1,nlift,d) -> (bs,n,nsamples,nlift,d)
-            distances = self.distance(picked_group_elems[...,None,:],a[:,None,None,:],alpha=alpha) #(bs,n,nsamples,1,d)
-            distances_m = torch.where(mask[:,:,None,None],distances,1e7*torch.ones_like(distances))
-            masked_distances = torch.where(~picked_mask,distances_m,1e8*torch.ones_like(distances_m))
-            farthest_idx = distances.min(dim=2)[0].min(dim=1)[0].argmax(-1) # (bs,n,nsamples,nlift) -> (bs,)
-            BatchIdx = torch.arange(bs).long().to(a.device)
-            picked_elem = a[BatchIdx,farthest_idx, :]#(bs,nlift,6) -> (bs,6)
-            picked_group_elems[:,j,i,:] = picked_elem
-            #assert not torch.any(torch.isnan(picked_elem)), f"nans in a {torch.isnan(picked_elem).sum()}"
-            picked_mask[:,j,i] = True
-    return picked_group_elems.reshape(bs,n*nsamples,d)
-
-
 @export
 class Trivial(LieGroup):
-    embed_dim=0
+    lie_dim=0
     def __init__(self,dim=2):
         super().__init__()
         self.q_dim = dim
         self.rep_dim = dim
 
     def lift(self,x,nsamples,**kwargs):
+        assert nsamples==1, "Abelian group, no need for nsamples"
         p,v,m = x
         bs,n,d = p.shape
         qa = p[...,:,None,:].expand(bs,n,n,d)
@@ -614,13 +584,13 @@ class Trivial(LieGroup):
 
 @export
 class FakeSchGroup(object,metaclass=Named):
-    embed_dim=0
+    lie_dim=0
     rep_dim=3
     q_dim=1
     
     def lift(self,x,nsamples,**kwargs):
         """assumes p has shape (*,n,2), vals has shape (*,n,c), mask has shape (*,n)
-            returns (a,v) with shapes [(*,n*nsamples,embed_dim),(*,n*nsamples,c)"""
+            returns (a,v) with shapes [(*,n*nsamples,lie_dim),(*,n*nsamples,c)"""
         p,v,m = x
         q = (p[...,:,None,:] - p[...,None,:,:]).norm(dim=-1).unsqueeze(-1)
         return (q,v,m)
