@@ -149,7 +149,7 @@ class FPSsubsample(nn.Module):
 class LieConv(PointConv):
     def __init__(self,*args,group=SE3,ds_frac=1,fill=1/3,cache=False,knn=False,**kwargs):
         kwargs.pop('xyz_dim',None)
-        super().__init__(*args,xyz_dim=group.embed_dim+2*group.q_dim,**kwargs)
+        super().__init__(*args,xyz_dim=group.lie_dim+2*group.q_dim,**kwargs)
         self.group = group # Equivariance group for LieConv
         self.register_buffer('r',torch.tensor(2.)) # Internal variable for local_neighborhood radius, set by fill
         self.fill_frac = min(fill,1.) # Average Fraction of the input which enters into local_neighborhood, determines r
@@ -342,7 +342,7 @@ class ImgLieResnet(LieResNet):
         fill = [fill/ds_frac**i for i in range(num_layers)]
         if increase_channels: # whether or not to scale the channels as image is downsampled
             k = [int(k/ds_frac**(i/2)) for i in range(num_layers+1)]
-        super().__init__(chin=chin,ds_frac=ds_frac,num_layers=num_layers,mc_samples=nbhd,mean=True,
+        super().__init__(chin=chin,ds_frac=ds_frac,num_layers=num_layers,nbhd=nbhd,mean=True,
                         group=group,fill=fill,k=k,num_outputs=num_targets,cache=True,knn=knn,**kwargs)
         self.lifted_coords = None
 

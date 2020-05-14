@@ -108,6 +108,7 @@ class HFC(HNet):
             *[FCswish(chs[i],chs[i+1]) for i in range(num_layers)],
             nn.Linear(chs[-1],num_targets)
         )
+        self.nfe=0
     def compute_V(self,x):
         """ Input is a canonical position variable and the system parameters,
             shapes (bs, n,d) and (bs,n,c)"""
@@ -122,6 +123,9 @@ class HLieResNet(LieResNet,HNet):
                         group=group,fill=1.,k=k,num_outputs=1,cache=True,knn=knn,**kwargs)
         self.nfe=0
         self.center = center
+    def forward(self,t,z,sysP,wgrad=True):
+        dynamics = HamiltonianDynamics(lambda t,z: self.compute_H(z,sysP),wgrad=wgrad)
+        return dynamics(t,z)
     def compute_V(self,x):
         """ Input is a canonical position variable and the system parameters,
             shapes (bs, n,d) and (bs,n,c)"""
