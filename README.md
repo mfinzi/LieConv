@@ -75,7 +75,7 @@ python examples/train_img.py --num_epochs=500 --trainer_config "{'log_suffix':'m
 
 # T2
 python examples/train_img.py --num_epochs=500 --trainer_config "{'log_suffix':'mnistT2'}" \
-   --net_config "{'k':128,'total_ds':.1,'fill'.1,'nbhd':25,'group':T(2)}" \
+   --net_config "{'k':128,'total_ds':.1,'fill':.1,'nbhd':25,'group':T(2)}" \
    --bs 25 --lr .003 --split "{'train':12000}" --aug=True
 
 # SO2
