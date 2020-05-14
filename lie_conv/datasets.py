@@ -16,7 +16,7 @@ from torchdiffeq import odeint_adjoint as odeint
 from corm_data.utils import initialize_datasets
 import torchvision
 from oil.utils.mytqdm import tqdm
-
+import subprocess
 #ModelNet40 code adapted from 
 #https://github.com/DylanWusee/pointconv_pytorch/blob/master/data_utils/ModelNetDataLoader.py
 
@@ -582,16 +582,15 @@ class QM9datasetV2(Dataset,metaclass=Named):
     default_root_dir = '~/datasets/molecular/qm9v2'
     def __init__(self,root_dir=default_root_dir):
         super().__init__()
-        root_dir = os.path.expanduser(root_dir)
-        fname = root_dir +"/qm9_eV_processed.tensor")
-        #
+        root_dir =  os.path.expanduser("~/LieConv/corm_data/")#os.path.expanduser(root_dir)
+        filename = root_dir +"qm9_eV_processed.tensor"
         #data = np.load(root_dir+"/qm9_eV.npz")
         #self.pad_data(data,root_dir)
         if not os.path.exists(filename):
             #os.makedirs(root_dir,exist_ok=True)
-            self.data = torch.load(os.path.expanduser("~/LieConv/corm_data/qm9_eV_processed.tensor"))
-        else:
-            self.data =  torch.load(filename)
+            subprocess.call(f'tar -zvxf {root_dir}qm9_compressed.tar.gz -C {root_dir}',shell=True)
+        self.data =  torch.load(filename)
+
     def pad_data(self,data,root):
         self.data = {}
         Nmols = len(data['N'])
