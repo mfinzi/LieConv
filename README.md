@@ -7,7 +7,7 @@ This repo contains the implementation and the experiments for the paper
 by [Marc Finzi](https://mfinzi.github.io/), [Samuel Stanton](https://www.sdstanton.com/), [Pavel Izmailov](https://izmailovpavel.github.io/), and [Andrew Gordon Wilson](https://cims.nyu.edu/~andrewgw/). [![Code Climate maintainability](https://img.shields.io/codeclimate/maintainability-percentage/mfinzi/LieConv)](https://codeclimate.com/github/mfinzi/LieConv)
 
 <p align="center">
-  <img src="https://user-images.githubusercontent.com/12687085/92333579-9838cd80-f054-11ea-8ea3-9ac030d7d186.png" width=500>
+  <img src="https://user-images.githubusercontent.com/12687085/92333579-9838cd80-f054-11ea-8ea3-9ac030d7d186.png" width=800>
 </p>
 
 If you find our work helpful, please cite it with
