@@ -174,7 +174,7 @@ class RotMNIST(EasyIMGDataset,torchvision.datasets.MNIST):
 
 from PIL import Image
 from torchvision.datasets.utils import download_url, download_and_extract_archive, extract_archive, \
-    makedir_exist_ok, verify_str_arg
+    verify_str_arg
 from torchvision.datasets.vision import VisionDataset
 # !wget -nc http://www.iro.umontreal.ca/~lisa/icml2007data/mnist_rotation_new.zip
 # # uncompress the zip file
@@ -236,8 +236,8 @@ class MnistRotDataset(VisionDataset,metaclass=Named):
         if self._check_exists():
             return
 
-        makedir_exist_ok(self.raw_folder)
-        makedir_exist_ok(self.processed_folder)
+        os.makedirs(self.raw_folder,exist_ok=True)
+        os.makedirs(self.processed_folder,exist_ok=True)
 
         # download files
         for url in self.resources:
