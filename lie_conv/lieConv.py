@@ -147,7 +147,7 @@ class FPSsubsample(nn.Module):
         return (subsampled_abq_pairs,subsampled_values,subsampled_mask)
 
 class LieConv(PointConv):
-    def __init__(self,*args,group=SE3,ds_frac=1,fill=1/3,cache=False,knn=False,**kwargs):
+    def __init__(self,*args,group=T(3),ds_frac=1,fill=1/3,cache=False,knn=False,**kwargs):
         kwargs.pop('xyz_dim',None)
         super().__init__(*args,xyz_dim=group.lie_dim+2*group.q_dim,**kwargs)
         self.group = group # Equivariance group for LieConv
