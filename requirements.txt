@@ -1,0 +1,38 @@
+certifi @ file:///croot/certifi_1671487769961/work/certifi
+charset-normalizer==3.0.1
+contourpy==1.0.7
+cycler==0.11.0
+dill==0.3.6
+fonttools==4.38.0
+h5py==3.8.0
+idna==3.4
+joblib==1.2.0
+kiwisolver==1.4.4
+-e git+ssh://git@github.com/YonatanGideoni/LieConv.git@b959d38c95de179bf829c34da17e3e29b4494f9c#egg=lie_conv
+matplotlib==3.6.3
+natsort==8.2.0
+numpy==1.24.1
+nvidia-cublas-cu11==11.10.3.66
+nvidia-cuda-nvrtc-cu11==11.7.99
+nvidia-cuda-runtime-cu11==11.7.99
+nvidia-cudnn-cu11==8.5.0.96
+olive-oil-ml @ git+https://github.com/mfinzi/olive-oil-ml@55e79af4dfc97044d23e007e85ec3fbba03684aa
+packaging==23.0
+pandas==1.5.3
+Pillow==9.4.0
+pyparsing==3.0.9
+python-dateutil==2.8.2
+pytz==2022.7.1
+requests==2.28.2
+scikit-learn==1.2.1
+scipy==1.10.0
+six==1.16.0
+sklearn==0.0.post1
+threadpoolctl==3.1.0
+torch==1.13.1
+torchcontrib==0.0.2
+torchdiffeq @ git+https://github.com/rtqichen/torchdiffeq@08007fbb473287c4be2d0f24649e8799338d0c3b
+torchvision==0.14.1
+tqdm==4.64.1
+typing_extensions==4.4.0
+urllib3==1.26.14
