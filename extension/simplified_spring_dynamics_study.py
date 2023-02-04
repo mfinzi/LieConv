@@ -16,12 +16,12 @@ from lie_conv.dynamicsTrainer import IntegratedDynamicsTrainer, HLieResNet
 from lie_conv.lieGroups import SE2
 
 
-def make_trainer(*, network, net_cfg, lr=1e-2, n_train: int = 5000, regen=False,
+def make_trainer(*, network, net_cfg, lr=1e-2, n_train: int = 500, regen=False,
                  dtype=torch.float32, device=torch.device('cuda'), bs=200, num_epochs=2,
                  trainer_config={'log_dir': 'data_scaling_study_final'}):
     # Create Training set and model
-    splits = {'train': n_train, 'val': min(n_train, 2000), 'test': 2000}
-    dataset = SpringDynamics(n_systems=100000, regen=regen)
+    splits = {'train': n_train, 'val': min(n_train, 200), 'test': 200}
+    dataset = SpringDynamics(n_systems=1000, regen=regen)
     with FixedNumpySeed(0):
         datasets = split_dataset(dataset, splits)
     model = network(**net_cfg).to(device=device, dtype=dtype)
