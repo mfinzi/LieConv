@@ -1,4 +1,4 @@
-""" 
+"""
 Note to the Reader:
 
 In order to handle the generic spatial data we process features as a tuple: (coordinates,values,mask)
@@ -11,8 +11,8 @@ Naively for LieConv we would process (lie_algebra_elems,values,mask) with the sa
 However, as an optimization to avoid repeated calculation of the pairs log(v^{-1}u)=log(e^{-b}e^{a}), we instead compute this for all
 pairs once at the lifting stage which has the name 'ab_pairs' in the code and shape (bs,n,n,d). Subsampling operates on this matrix
 by subsampling both n axes. abq_pairs also includes the q pairs (embedded orbit identifiers) so abq_pairs =  [log(e^{-b}e^{a}),qa,qb].
-So the tuple  (abq_pairs,values,mask) with shapes (bs,n,n,d) (bs,n,c) (bs,n) is passed through the network. 
-The 'Pass' module is used extensively to operate on only one of these and return the tuple with the rest unchanged, 
+So the tuple  (abq_pairs,values,mask) with shapes (bs,n,n,d) (bs,n,c) (bs,n) is passed through the network.
+The 'Pass' module is used extensively to operate on only one of these and return the tuple with the rest unchanged,
 such as for computing a swish nonlinearity on values.
 """
 
@@ -74,7 +74,8 @@ class PointConv(nn.Module):
         return neighbor_xyz, neighbor_values, neighbor_mask
 
     def point_convolve(self, embedded_group_elems, nbhd_vals, nbhd_mask):
-        """ embedded_group_elems: (bs,m,nbhd,d)
+        """ real l-conv convolution operation
+            embedded_group_elems: (bs,m,nbhd,d)
             nbhd_vals: (bs,m,mc_samples,ci)
             nbhd_mask: (bs,m,mc_samples)"""
         bs, m, nbhd, ci = nbhd_vals.shape  # (bs,m,mc_samples,d) -> (bs,m,mc_samples,cm*co/ci)
@@ -82,8 +83,10 @@ class PointConv(nn.Module):
         penult_kernel_weights_m = torch.where(nbhd_mask.unsqueeze(-1), penult_kernel_weights,
                                               torch.zeros_like(penult_kernel_weights))
         nbhd_vals_m = torch.where(nbhd_mask.unsqueeze(-1), nbhd_vals, torch.zeros_like(nbhd_vals))
-        #      (bs,m,mc_samples,ci) -> (bs,m,ci,mc_samples) @ (bs, m, mc_samples, cmco/ci) -> (bs,m,ci,cmco/ci) -> (bs,m, cmco) 
+        #      (bs,m,mc_samples,ci) -> (bs,m,ci,mc_samples) @ (bs, m, mc_samples, cmco/ci) -> (bs,m,ci,cmco/ci) -> (bs,m, cmco)
+        # combine the function values with the penultimate layer: 
         partial_convolved_vals = (nbhd_vals_m.transpose(-1, -2) @ penult_kernel_weights_m).view(bs, m, -1)
+        # apply the weights of the final linear layer
         convolved_vals = self.linear(partial_convolved_vals)  # (bs,m,cmco) -> (bs,m,co)
         if self.mean: convolved_vals /= nbhd_mask.sum(-1, keepdim=True).clamp(min=1)
         return convolved_vals
@@ -103,7 +106,7 @@ class PointConv(nn.Module):
 
 
 def FPSindices(dists, frac, mask):
-    """ inputs: pairwise distances DISTS (bs,n,n), downsample_frac (float), valid atom mask (bs,n) 
+    """ inputs: pairwise distances DISTS (bs,n,n), downsample_frac (float), valid atom mask (bs,n)
         outputs: chosen_indices (bs,m) """
     m = int(np.round(frac * dists.shape[1]))
     device = dists.device
@@ -157,6 +160,9 @@ class FPSsubsample(nn.Module):
 
 
 class LieConv(PointConv):
+    """
+    LieConv layer implementing the discretised Lie Algebra Convolution
+    """
     def __init__(self, *args, group=T(3), ds_frac=1, fill=1 / 3, cache=False, knn=False, **kwargs):
         kwargs.pop('xyz_dim', None)
         super().__init__(*args, xyz_dim=group.lie_dim + 2 * group.q_dim, **kwargs)
@@ -226,22 +232,43 @@ class LieConv(PointConv):
             inputs [embedded_group_elems (bs,m,mc_samples,d), nbhd_vals (bs,m,mc_samples,ci), nbhd_mask (bs,m,mc_samples)]
             outputs [convolved_vals (bs,m,co)]"""
         bs, m, nbhd, ci = nbhd_vals.shape  # (bs,m,mc_samples,d) -> (bs,m,mc_samples,cm*co/ci)
+        # self.weightnet -> main MLP for the kernel
+        # returns the penultimate layer activations (s_i), these can then be used
+        # to combine with values
         _, penult_kernel_weights, _ = self.weightnet((None, embedded_group_elems, nbhd_mask))
         penult_kernel_weights_m = torch.where(nbhd_mask.unsqueeze(-1), penult_kernel_weights,
                                               torch.zeros_like(penult_kernel_weights))
         nbhd_vals_m = torch.where(nbhd_mask.unsqueeze(-1), nbhd_vals, torch.zeros_like(nbhd_vals))
-        #      (bs,m,mc_samples,ci) -> (bs,m,ci,mc_samples) @ (bs, m, mc_samples, cmco/ci) -> (bs,m,ci,cmco/ci) -> (bs,m, cmco) 
+        #      (bs,m,mc_samples,ci) -> (bs,m,ci,mc_samples) @ (bs, m, mc_samples, cmco/ci) -> (bs,m,ci,cmco/ci) -> (bs,m, cmco)
+        # use the penultimate weights and values to combine (PointConv trick)
         partial_convolved_vals = (nbhd_vals_m.transpose(-1, -2) @ penult_kernel_weights_m).view(bs, m, -1)
+        # last weight matrix multiplication:
         convolved_vals = self.linear(partial_convolved_vals)  # (bs,m,cmco) -> (bs,m,co)
         if self.mean: convolved_vals /= nbhd_mask.sum(-1, keepdim=True).clamp(min=1)  # Divide by num points
         return convolved_vals
 
     def forward(self, inp):
-        """inputs: [pairs_abq (bs,n,n,d)], [inp_vals (bs,n,ci)]), [query_indices (bs,m)]
+        """
+        steps:
+            1) subsample??
+            2) neigbhours??
+            3) convolve the values using an MLP
+            4) mask out the values not in the batch
+
+          pairs_abq -> pairs of lie algebra parameters and their log(v^{-1}u) used in the convolution
+
+            inputs: [pairs_abq (bs,n,n,d)], [inp_vals (bs,n,ci)]), [query_indices (bs,m)]
            outputs [subsampled_abq (bs,m,m,d)], [convolved_vals (bs,m,co)]"""
         sub_abq, sub_vals, sub_mask, query_indices = self.subsample(inp, withquery=True)
         nbhd_abq, nbhd_vals, nbhd_mask = self.extract_neighborhood(inp, query_indices)
+
+        # now we have the extracted neighbourhood, where:
+        # nbhd_abq -> pairs of elements 
+        # nbhd_vals -> values of the function at each group element - to be convolved
+        # nbhd_mask ->
         convolved_vals = self.point_convolve(nbhd_abq, nbhd_vals, nbhd_mask)
+        
+        # replace the conolved vals with zeros for the masked elements
         convolved_wzeros = torch.where(sub_mask.unsqueeze(-1), convolved_vals, torch.zeros_like(convolved_vals))
         return sub_abq, convolved_wzeros, sub_mask
 
@@ -312,7 +339,7 @@ class GlobalPool(nn.Module):
 @export
 class LieResNet(nn.Module, metaclass=Named):
     """ Generic LieConv architecture from Fig 5. Relevant Arguments:
-        [Fill] specifies the fraction of the input which is included in local neighborhood. 
+        [Fill] specifies the fraction of the input which is included in local neighborhood.
                 (can be array to specify a different value for each layer)
         [nbhd] number of samples to use for Monte Carlo estimation (p)
         [chin] number of input channels: 1 for MNIST, 3 for RGB images, other for non images
@@ -347,6 +374,8 @@ class LieResNet(nn.Module, metaclass=Named):
         self.group = group
 
     def forward(self, x):
+        # result: (pair_abq(), between all lifted samples - already returned as lie algebra arguments (log(u))
+        , function values, mask)
         lifted_x = self.group.lift(x, self.liftsamples)
         return self.net(lifted_x)
 
