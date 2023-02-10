@@ -272,6 +272,48 @@ class LieConv(PointConv):
         convolved_wzeros = torch.where(sub_mask.unsqueeze(-1), convolved_vals, torch.zeros_like(convolved_vals))
         return sub_abq, convolved_wzeros, sub_mask
 
+class LieConvGCN(LieConv):
+    """
+    LieConv layer using GCN instead of MLP for convolution
+    """
+    def __init__(self, **kwargs):
+        super().__init__(kwargs)
+
+    def point_convolve(self, abq, vals, mask):
+        """
+        Convolve each group element using its neighbours with the
+        help of a GCN
+        """
+
+        # Right now, we have enough to build a GCN, where:
+        # 1) node features -> vals
+        # 2) edges -> fully connected
+        # 3) edge features -> abq
+        # These can then be used to obtain node representation that is 
+        # equivalent to the convolved values of vals
+
+        # TODO: GCN
+        pass        
+
+    def forward(self, inp):
+        """
+        Apply the LieConvGCN layer
+        """
+        # abq -> pairs of group elements (right now in lie algebra) 
+        #        and the value of log(v^{-1}u) (bs, n, n, d), where d is the dimension of the Lie Algebra basis
+        # vals -> values of the function evaluated at each point (bs, n, c), where c is the number of channels
+        # mask -> input mask to add padding from minibatches
+        abq, vals, mask = inp
+        # TODO: potentially extract a neighbourhood?
+
+        # perform convolution
+        convolved_vals = self.point_convolve(abq, vals, mask)
+        
+        # replace the conolved vals with zeros for the masked elements
+        convolved_wzeros = torch.where(sub_mask.unsqueeze(-1), convolved_vals, torch.zeros_like(convolved_vals))
+        return abq, convolved_wzeros, mask
+
+
 
 @export
 def pConvBNrelu(in_channels, out_channels, bn=True, act='swish', **kwargs):
