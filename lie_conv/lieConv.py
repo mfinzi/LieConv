@@ -163,6 +163,7 @@ class LieConv(PointConv):
     """
     LieConv layer implementing the discretised Lie Algebra Convolution
     """
+
     def __init__(self, *args, group=T(3), ds_frac=1, fill=1 / 3, cache=False, knn=False, **kwargs):
         kwargs.pop('xyz_dim', None)
         super().__init__(*args, xyz_dim=group.lie_dim + 2 * group.q_dim, **kwargs)
@@ -267,17 +268,19 @@ class LieConv(PointConv):
         # nbhd_vals -> values of the function at each group element - to be convolved
         # nbhd_mask ->
         convolved_vals = self.point_convolve(nbhd_abq, nbhd_vals, nbhd_mask)
-        
+
         # replace the conolved vals with zeros for the masked elements
         convolved_wzeros = torch.where(sub_mask.unsqueeze(-1), convolved_vals, torch.zeros_like(convolved_vals))
         return sub_abq, convolved_wzeros, sub_mask
+
 
 class LieConvGCN(LieConv):
     """
     LieConv layer using GCN instead of MLP for convolution
     """
-    def __init__(self, **kwargs):
-        super().__init__(kwargs)
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
 
     def point_convolve(self, abq, vals, mask):
         """
@@ -292,8 +295,10 @@ class LieConvGCN(LieConv):
         # These can then be used to obtain node representation that is 
         # equivalent to the convolved values of vals
 
+        dists = self.group.distance(abq)
+
         # TODO: GCN
-        pass        
+        pass
 
     def forward(self, inp):
         """
@@ -308,11 +313,10 @@ class LieConvGCN(LieConv):
 
         # perform convolution
         convolved_vals = self.point_convolve(abq, vals, mask)
-        
-        # replace the conolved vals with zeros for the masked elements
+
+        # replace the convolved vals with zeros for the masked elements
         convolved_wzeros = torch.where(sub_mask.unsqueeze(-1), convolved_vals, torch.zeros_like(convolved_vals))
         return abq, convolved_wzeros, mask
-
 
 
 @export
@@ -395,14 +399,14 @@ class LieResNet(nn.Module, metaclass=Named):
 
     def __init__(self, chin, ds_frac=1, num_outputs=1, k=1536, nbhd=np.inf,
                  act="swish", bn=True, num_layers=6, mean=True, per_point=True, pool=True,
-                 liftsamples=1, fill=1 / 4, group=SE3, knn=False, cache=False, **kwargs):
+                 liftsamples=1, fill=1 / 4, group=SE3, knn=False, cache=False, conv_layer=LieConv, **kwargs):
         super().__init__()
         if isinstance(fill, (float, int)):
             fill = [fill] * num_layers
         if isinstance(k, int):
             k = [k] * (num_layers + 1)
-        conv = lambda ki, ko, fill: LieConv(ki, ko, mc_samples=nbhd, ds_frac=ds_frac, bn=bn, act=act, mean=mean,
-                                            group=group, fill=fill, cache=cache, knn=knn, **kwargs)
+        conv = lambda ki, ko, fill: conv_layer(ki, ko, mc_samples=nbhd, ds_frac=ds_frac, bn=bn, act=act, mean=mean,
+                                               group=group, fill=fill, cache=cache, knn=knn, **kwargs)
         self.net = nn.Sequential(
             Pass(nn.Linear(chin, k[0]), dim=1),  # embedding layer
             *[BottleBlock(k[i], k[i + 1], conv, bn=bn, act=act, fill=fill[i]) for i in range(num_layers)],
@@ -417,7 +421,7 @@ class LieResNet(nn.Module, metaclass=Named):
 
     def forward(self, x):
         # result: (pair_abq(), between all lifted samples - already returned as lie algebra arguments (log(u))
-        , function values, mask)
+        # , function values, mask)
         lifted_x = self.group.lift(x, self.liftsamples)
         return self.net(lifted_x)
 
@@ -429,7 +433,7 @@ class ImgLieResnet(LieResNet):
 
     def __init__(self, chin=1, total_ds=1 / 64, num_layers=6, group=T(2), fill=1 / 32, k=256,
                  knn=False, nbhd=12, num_targets=10, increase_channels=True, **kwargs):
-        ds_frac = (total_ds) ** (1 / num_layers)
+        ds_frac = total_ds ** (1 / num_layers)
         fill = [fill / ds_frac ** i for i in range(num_layers)]
         if increase_channels:  # whether or not to scale the channels as image is downsampled
             k = [int(k / ds_frac ** (i / 2)) for i in range(num_layers + 1)]
@@ -458,3 +462,9 @@ class ImgLieResnet(LieResNet):
             else:
                 lifted_vals, lifted_mask = self.group.expand_like(values, mask, self.lifted_coords)
         return self.net((self.lifted_coords, lifted_vals, lifted_mask))
+
+
+@export
+class ImgGCNLieResnet(ImgLieResnet):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, conv_layer=LieConvGCN, **kwargs)
