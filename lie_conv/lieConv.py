@@ -274,9 +274,14 @@ class LieConv(PointConv):
         return sub_abq, convolved_wzeros, sub_mask
 
 
-class LieConvGCN(LieConv):
+class LieConvGATLayer(nn.Module):
+    def __int__(self):
+        raise NotImplementedError
+
+
+class LieConvGAT(LieConv):
     """
-    LieConv layer using GCN instead of MLP for convolution
+    LieConv layer using GAT instead of MLP for convolution
     """
 
     def __init__(self, *args, **kwargs):
@@ -284,11 +289,15 @@ class LieConvGCN(LieConv):
 
     def point_convolve(self, abq, vals, mask):
         """
-        Convolve each group element using its neighbours with the
-        help of a GCN
+        Convolve each group element using its neighbours with the help of a GCN
+        bs = batch size, n=# of group elements, c=# of input channels, d=lie group's dim, co=# of output channels
+        inputs: [pairs_abq (bs,n,n,d), inp_vals (bs,n,c), mask (bs,n)]
+        outputs [convolved_vals (bs,m,co)]
         """
+        # TODO - add attention
+        # TODO - move this into the LieConvGATLayer class
 
-        # Right now, we have enough to build a GCN, where:
+        # Right now, we have enough to build a GAT, where:
         # 1) node features -> vals
         # 2) edges -> fully connected
         # 3) edge features -> abq
@@ -296,13 +305,15 @@ class LieConvGCN(LieConv):
         # equivalent to the convolved values of vals
 
         dists = self.group.distance(abq)
+        adj_mat = dists[0]
 
-        # TODO: GCN
-        pass
+        padded_vals = torch.where(mask.unsqueeze(-1), vals, torch.zeros_like(vals))
+
+        return adj_mat @ padded_vals
 
     def forward(self, inp):
         """
-        Apply the LieConvGCN layer
+        Apply the LieConvGAT layer
         """
         # abq -> pairs of group elements (right now in lie algebra) 
         #        and the value of log(v^{-1}u) (bs, n, n, d), where d is the dimension of the Lie Algebra basis
@@ -314,9 +325,7 @@ class LieConvGCN(LieConv):
         # perform convolution
         convolved_vals = self.point_convolve(abq, vals, mask)
 
-        # replace the convolved vals with zeros for the masked elements
-        convolved_wzeros = torch.where(sub_mask.unsqueeze(-1), convolved_vals, torch.zeros_like(convolved_vals))
-        return abq, convolved_wzeros, mask
+        return abq, convolved_vals, mask
 
 
 @export
@@ -465,6 +474,6 @@ class ImgLieResnet(LieResNet):
 
 
 @export
-class ImgGCNLieResnet(ImgLieResnet):
+class ImgGATLieResnet(ImgLieResnet):
     def __init__(self, *args, **kwargs):
-        super().__init__(*args, conv_layer=LieConvGCN, **kwargs)
+        super().__init__(*args, conv_layer=LieConvGAT, **kwargs)

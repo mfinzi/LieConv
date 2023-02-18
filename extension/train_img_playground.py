@@ -1,4 +1,5 @@
 import torch
+from torch import nn
 from torch.utils.data import DataLoader
 from oil.utils.utils import LoaderTo, cosLr, islice
 from oil.tuning.study import train_trial
@@ -11,11 +12,11 @@ from oil.tuning.args import argupdated_config
 import copy
 import lie_conv.lieGroups as lieGroups
 import lie_conv.lieConv as lieConv
-from lie_conv.lieConv import ImgGCNLieResnet
+from lie_conv.lieConv import ImgGATLieResnet, ImgLieResnet
 from lie_conv.datasets import MnistRotDataset
 
 
-def makeTrainer(*, dataset=MnistRotDataset, network=ImgGCNLieResnet, num_epochs=100,
+def makeTrainer(*, dataset=MnistRotDataset, network=ImgGATLieResnet, num_epochs=100,
                 bs=50, lr=3e-3, aug=True, optim=Adam, device='cpu', trainer=Classifier,
                 split={'train': 300}, small_test=False, net_config={}, opt_config={},
                 trainer_config={'log_dir': None}, num_layers: int = 1):
