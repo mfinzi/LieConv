@@ -22,7 +22,7 @@ import torch.nn.functional as F
 import numpy as np
 from lie_conv.utils import Expression, export, Named, Pass
 from lie_conv.utils import FarthestSubsample, knn_point, index_points
-from lie_conv.lieGroups import T, SO2, SO3, SE2, SE3, norm
+from lie_conv.lieGroups import T, SO2, SO3, SE2, SE3, norm, LieGroup
 from lie_conv.masked_batchnorm import MaskBatchNormNd
 
 
@@ -53,6 +53,7 @@ class PointConv(nn.Module):
                  mean=False):
         super().__init__()
         self.chin = chin  # input channels
+        self.chout = chout  # output channels
         self.cmco_ci = 16  # a hyperparameter controlling size and bottleneck compute cost of weightnet
         self.xyz_dim = xyz_dim  # dimension of the space on which convolution operates
         self.knn_channels = knn_channels  # number of xyz dims on which to compute knn
@@ -274,11 +275,6 @@ class LieConv(PointConv):
         return sub_abq, convolved_wzeros, sub_mask
 
 
-class LieConvGATLayer(nn.Module):
-    def __int__(self):
-        raise NotImplementedError
-
-
 class LieConvGAT(LieConv):
     """
     LieConv layer using GAT instead of MLP for convolution
@@ -286,6 +282,7 @@ class LieConvGAT(LieConv):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.linear = nn.Linear(self.chin, self.chout)
 
     def point_convolve(self, abq, vals, mask):
         """
@@ -295,7 +292,7 @@ class LieConvGAT(LieConv):
         outputs [convolved_vals (bs,m,co)]
         """
         # TODO - add attention
-        # TODO - move this into the LieConvGATLayer class
+        # TODO - move this into a LieConvGATLayer class?
 
         # Right now, we have enough to build a GAT, where:
         # 1) node features -> vals
@@ -307,25 +304,31 @@ class LieConvGAT(LieConv):
         dists = self.group.distance(abq)
         adj_mat = dists[0]
 
-        padded_vals = torch.where(mask.unsqueeze(-1), vals, torch.zeros_like(vals))
+        masked_vals = torch.where(mask.unsqueeze(-1), vals, torch.zeros_like(vals))
 
-        return adj_mat @ padded_vals
+        partial_convolved_vals = adj_mat @ masked_vals
+        convolved_vals = self.linear(partial_convolved_vals)
+
+        return convolved_vals
 
     def forward(self, inp):
         """
         Apply the LieConvGAT layer
         """
-        # abq -> pairs of group elements (right now in lie algebra) 
+        # abq, vals, mask = inp
+        # abq -> pairs of group elements (right now in lie algebra)
         #        and the value of log(v^{-1}u) (bs, n, n, d), where d is the dimension of the Lie Algebra basis
         # vals -> values of the function evaluated at each point (bs, n, c), where c is the number of channels
         # mask -> input mask to add padding from minibatches
-        abq, vals, mask = inp
-        # TODO: potentially extract a neighbourhood?
+
+        # needed for consistency with existing architecture
+        sub_abq, sub_vals, sub_mask, query_indices = self.subsample(inp, withquery=True)
 
         # perform convolution
-        convolved_vals = self.point_convolve(abq, vals, mask)
+        convolved_vals = self.point_convolve(sub_abq, sub_vals, sub_mask)
 
-        return abq, convolved_vals, mask
+        convolved_wzeros = torch.where(sub_mask.unsqueeze(-1), convolved_vals, torch.zeros_like(convolved_vals))
+        return sub_abq, convolved_wzeros, sub_mask
 
 
 @export
