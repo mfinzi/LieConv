@@ -19,12 +19,12 @@ from lie_conv.datasets import MnistRotDataset
 def makeTrainer(*, dataset=MnistRotDataset, network=ImgGATLieResnet, num_epochs=100,
                 bs=50, lr=3e-3, aug=True, optim=Adam, device='cuda', trainer=Classifier,
                 split={'train': 12000}, small_test=False, net_config={}, opt_config={},
-                trainer_config={'log_dir': None}, num_layers: int = 1):
+                trainer_config={'log_dir': None}):
     # Prep the datasets splits, model, and dataloaders
     datasets = split_dataset(dataset(f'~/datasets/{dataset}/'), splits=split)
     datasets['test'] = dataset(f'~/datasets/{dataset}/', train=False)
     device = torch.device(device)
-    model = network(num_targets=datasets['train'].num_targets, num_layers=num_layers, **net_config).to(device)
+    model = network(num_targets=datasets['train'].num_targets, **net_config).to(device)
     if aug: model = torch.nn.Sequential(datasets['train'].default_aug_layers(), model)
     model, bs = try_multigpu_parallelize(model, bs)
 
