@@ -85,7 +85,7 @@ class PointConv(nn.Module):
                                               torch.zeros_like(penult_kernel_weights))
         nbhd_vals_m = torch.where(nbhd_mask.unsqueeze(-1), nbhd_vals, torch.zeros_like(nbhd_vals))
         #      (bs,m,mc_samples,ci) -> (bs,m,ci,mc_samples) @ (bs, m, mc_samples, cmco/ci) -> (bs,m,ci,cmco/ci) -> (bs,m, cmco)
-        # combine the function values with the penultimate layer: 
+        # combine the function values with the penultimate layer:
         partial_convolved_vals = (nbhd_vals_m.transpose(-1, -2) @ penult_kernel_weights_m).view(bs, m, -1)
         # apply the weights of the final linear layer
         convolved_vals = self.linear(partial_convolved_vals)  # (bs,m,cmco) -> (bs,m,co)
@@ -265,7 +265,7 @@ class LieConv(PointConv):
         nbhd_abq, nbhd_vals, nbhd_mask = self.extract_neighborhood(inp, query_indices)
 
         # now we have the extracted neighbourhood, where:
-        # nbhd_abq -> pairs of elements 
+        # nbhd_abq -> pairs of elements
         # nbhd_vals -> values of the function at each group element - to be convolved
         # nbhd_mask ->
         convolved_vals = self.point_convolve(nbhd_abq, nbhd_vals, nbhd_mask)
@@ -298,15 +298,13 @@ class LieConvGAT(LieConv):
         # 1) node features -> vals
         # 2) edges -> fully connected
         # 3) edge features -> abq
-        # These can then be used to obtain node representation that is 
+        # These can then be used to obtain node representation that is
         # equivalent to the convolved values of vals
-
+        # returns [batch_size, n, n]
         dists = self.group.distance(abq)
-        adj_mat = dists[0]
-
         masked_vals = torch.where(mask.unsqueeze(-1), vals, torch.zeros_like(vals))
 
-        partial_convolved_vals = adj_mat @ masked_vals
+        partial_convolved_vals = torch.bmm(dists, masked_vals)
         convolved_vals = self.linear(partial_convolved_vals)
 
         return convolved_vals

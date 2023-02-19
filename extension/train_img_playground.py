@@ -17,8 +17,8 @@ from lie_conv.datasets import MnistRotDataset
 
 
 def makeTrainer(*, dataset=MnistRotDataset, network=ImgGATLieResnet, num_epochs=100,
-                bs=50, lr=3e-3, aug=True, optim=Adam, device='cpu', trainer=Classifier,
-                split={'train': 300}, small_test=False, net_config={}, opt_config={},
+                bs=50, lr=3e-3, aug=True, optim=Adam, device='cuda', trainer=Classifier,
+                split={'train': 12000}, small_test=False, net_config={}, opt_config={},
                 trainer_config={'log_dir': None}, num_layers: int = 1):
     # Prep the datasets splits, model, and dataloaders
     datasets = split_dataset(dataset(f'~/datasets/{dataset}/'), splits=split)
