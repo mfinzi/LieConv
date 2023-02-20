@@ -275,14 +275,23 @@ class LieConv(PointConv):
         return sub_abq, convolved_wzeros, sub_mask
 
 
-class LieConvGAT(LieConv):
+class LieConvGCN(LieConv):
     """
-    LieConv layer using GAT instead of MLP for convolution
+    LieConv layer using GCN instead of MLP for convolution
     """
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, hidden_dim: int = None, n_layers: int = 1, **kwargs):
         super().__init__(*args, **kwargs)
-        self.linear = nn.Linear(self.chin, self.chout)
+
+        if hidden_dim is None:
+            hidden_dim = self.chout
+
+        if n_layers == 1:
+            self.layers = [nn.Linear(self.chin, self.chout)]
+        else:
+            self.layers = [nn.Linear(self.chin, hidden_dim)] + \
+                          [nn.Linear(hidden_dim, hidden_dim) for _ in range(n_layers - 2)] + \
+                          [nn.Linear(hidden_dim, self.chout)]
 
     def point_convolve(self, abq, vals, mask):
         """
@@ -292,9 +301,9 @@ class LieConvGAT(LieConv):
         outputs [convolved_vals (bs,m,co)]
         """
         # TODO - add attention
-        # TODO - move this into a LieConvGATLayer class?
+        # TODO - move this into a LieConvGCNLayer class?
 
-        # Right now, we have enough to build a GAT, where:
+        # Right now, we have enough to build a GCN, where:
         # 1) node features -> vals
         # 2) edges -> fully connected
         # 3) edge features -> abq
@@ -304,14 +313,19 @@ class LieConvGAT(LieConv):
         dists = self.group.distance(abq)
         masked_vals = torch.where(mask.unsqueeze(-1), vals, torch.zeros_like(vals))
 
-        partial_convolved_vals = torch.bmm(dists, masked_vals)
-        convolved_vals = self.linear(partial_convolved_vals)
+        conv_vals = masked_vals
+        for layer in self.layers[:-1]:
+            conv_vals = torch.bmm(dists, conv_vals)
+            conv_vals = F.relu(layer(conv_vals))
+        # no relu for final layer
+        conv_vals = torch.bmm(dists, conv_vals)
+        conv_vals = self.layers[-1](conv_vals)
 
-        return convolved_vals
+        return conv_vals
 
     def forward(self, inp):
         """
-        Apply the LieConvGAT layer
+        Apply the LieConvGCN layer
         """
         # abq, vals, mask = inp
         # abq -> pairs of group elements (right now in lie algebra)
@@ -475,6 +489,8 @@ class ImgLieResnet(LieResNet):
 
 
 @export
-class ImgGATLieResnet(ImgLieResnet):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, conv_layer=LieConvGAT, **kwargs)
+class ImgGCNLieResnet(ImgLieResnet):
+    def __init__(self, *args, gnn_recep_field: int = 2, **kwargs):
+        super().__init__(*args,
+                         conv_layer=lambda *args, **kwargs: LieConvGCN(*args, n_layers=gnn_recep_field, **kwargs),
+                         **kwargs)
