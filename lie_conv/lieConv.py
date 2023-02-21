@@ -292,6 +292,7 @@ class LieConvGCN(LieConv):
             self.layers = [nn.Linear(self.chin, hidden_dim)] + \
                           [nn.Linear(hidden_dim, hidden_dim) for _ in range(n_layers - 2)] + \
                           [nn.Linear(hidden_dim, self.chout)]
+        self.layers = nn.ModuleList(self.layers)
 
     def point_convolve(self, abq, vals, mask):
         """
@@ -316,7 +317,8 @@ class LieConvGCN(LieConv):
         conv_vals = masked_vals
         for layer in self.layers[:-1]:
             conv_vals = torch.bmm(dists, conv_vals)
-            conv_vals = F.relu(layer(conv_vals))
+            conv_vals = layer(conv_vals)
+            conv_vals = F.relu(conv_vals)
         # no relu for final layer
         conv_vals = torch.bmm(dists, conv_vals)
         conv_vals = self.layers[-1](conv_vals)
