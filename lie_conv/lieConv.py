@@ -280,14 +280,36 @@ class LieConvGCN(LieConv):
     LieConv layer using GCN instead of MLP for convolution
     """
 
-    def __init__(self, *args, hidden_dim: int = None, n_layers: int = 1, **kwargs):
+    def __init__(self, 
+                 *args, 
+                 hidden_dim: int = None, 
+                 n_layers: int = 3, 
+                 use_dist = True, 
+                 **kwargs
+        ):
+        """
+        hidden_dim: int, size of hidden dim of the outside MLP
+        n_layers: number of layers
+        use_dist: bool. Alternate between the MLP that operates
+                    on ||log(ab|| or log(ab)
+        """
         super().__init__(*args, **kwargs)
+        self.use_dist = use_dist
+        if self.use_dist:
+            self.edge_weights_dim = 1
+        else:
+            # use Lie Algebra elems
+            self.edge_weights_dim = self.group.lie_dim + 2 # +2 for the orbit
 
         if hidden_dim is None:
             hidden_dim = self.chout
-
         if n_layers == 1:
-            self.layers = [nn.Linear(self.chin, self.chout)]
+            self.layers = [
+                    nn.Linear(
+                        self.chin,
+                        self.chout
+                    )
+            ]
         else:
             self.layers = [nn.Linear(self.chin, hidden_dim)] + \
                           [nn.Linear(hidden_dim, hidden_dim) for _ in range(n_layers - 2)] + \
@@ -310,17 +332,28 @@ class LieConvGCN(LieConv):
         # 3) edge features -> abq
         # These can then be used to obtain node representation that is
         # equivalent to the convolved values of vals
-        # returns [batch_size, n, n]
-        dists = self.group.distance(abq)
+        
+        # edge_feats: [batch_size, n, n, d]
+        # where d is either num_generators + 2 (for orbits) 
+        # or d=1 if using distances to convolve
+        if self.use_dist:
+            edge_feats = self.group.distance(abq)[:,:,:,None]
+        else:
+            edge_feats = abq
         masked_vals = torch.where(mask.unsqueeze(-1), vals, torch.zeros_like(vals))
 
         conv_vals = masked_vals
         for layer in self.layers[:-1]:
-            conv_vals = torch.bmm(dists, conv_vals)
+            # Convolve each channel with all dimensions of the Lie Algebra
+            # Result is [batch_size, n, c], same as input values
+            conv_vals = torch.einsum("bijk,bjl->bil", edge_feats, conv_vals)
+
+            # Pass the convolved vals through MLP
+            # New shape: [batch_size, n, c_out]
             conv_vals = layer(conv_vals)
             conv_vals = F.relu(conv_vals)
         # no relu for final layer
-        conv_vals = torch.bmm(dists, conv_vals)
+        conv_vals = torch.einsum("bijk,bjl->bil", edge_feats, conv_vals)
         conv_vals = self.layers[-1](conv_vals)
 
         return conv_vals
@@ -492,7 +525,7 @@ class ImgLieResnet(LieResNet):
 
 @export
 class ImgGCNLieResnet(ImgLieResnet):
-    def __init__(self, *args, gnn_recep_field: int = 2, **kwargs):
+    def __init__(self, *args, gnn_recep_field: int = 3, **kwargs):
         super().__init__(*args,
                          conv_layer=lambda *args, **kwargs: LieConvGCN(*args, n_layers=gnn_recep_field, **kwargs),
                          **kwargs)
