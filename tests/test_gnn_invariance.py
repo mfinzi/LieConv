@@ -32,3 +32,6 @@ def test_gnn_model_invariance(device='cpu', dataset=MnistRotDataset, bs: int = 2
             print(abs(norm_res - rot_res).max())
             assert abs(norm_res - rot_res).max() < MAX_ERR, \
                 'Error - too high error, model is not equivariant!'
+
+if __name__ == "__main__":
+    test_gnn_model_invariance()
