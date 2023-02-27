@@ -5,7 +5,7 @@ from torch.utils.data import DataLoader
 
 from lie_conv.datasets import MnistRotDataset
 from lie_conv.lieConv import ImgGCNLieResnet, ImgLieResnet, LieConvGCN
-from lie_conv.lieGroups import SO2
+from lie_conv.lieGroups import SO2, T, Trivial
 
 
 def test_gnn_model_invariance(device='cpu', dataset=MnistRotDataset, bs: int = 20,
@@ -35,7 +35,7 @@ def test_gnn_model_invariance(device='cpu', dataset=MnistRotDataset, bs: int = 2
 
 
 def test_gnn_conv_equivariance(bs: int = 2, device='cpu', h: int = 10, w: int = 10, liftsamples: int = 1,
-                               group=SO2(.0), n_mc_samples: int = 25, ds_frac: float = 1., fill: float = 1.,
+                               group=Trivial(), n_mc_samples: int = 25, ds_frac: float = 1., fill: float = 1.,
                                conv_layer=LieConvGCN):
     device = torch.device(device)
 
@@ -43,6 +43,7 @@ def test_gnn_conv_equivariance(bs: int = 2, device='cpu', h: int = 10, w: int = 
     i = torch.linspace(-h / 2., h / 2., h)
     j = torch.linspace(-w / 2., w / 2., w)
     coords = torch.stack(torch.meshgrid([i, j]), dim=-1).float().view(-1, 2).unsqueeze(0).repeat(bs, 1, 1)
+    coords[1, :, 0] += 1  # shift x by 1
 
     values = torch.ones((bs, coords.shape[1], 1))
 
@@ -54,6 +55,8 @@ def test_gnn_conv_equivariance(bs: int = 2, device='cpu', h: int = 10, w: int = 
                           mean=True, group=group, fill=fill, cache=True, knn=False)
 
     conv_vals = gnn_conv.point_convolve(abq, lifted_vals, lifted_mask)
+
+    assert (conv_vals[0] == conv_vals[1]).all(), 'Error - layer is not equivariant!'
 
 
 if __name__ == "__main__":
