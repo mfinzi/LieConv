@@ -35,7 +35,7 @@ def test_gnn_model_invariance(device='cpu', dataset=MnistRotDataset, bs: int = 2
 
 
 def test_gnn_conv_equivariance(bs: int = 2, device='cpu', h: int = 10, w: int = 10, liftsamples: int = 1,
-                               group=Trivial(), n_mc_samples: int = 25, ds_frac: float = 1., fill: float = 1.,
+                               group=T(2), n_mc_samples: int = 25, ds_frac: float = 1., fill: float = 1.,
                                conv_layer=LieConvGCN):
     device = torch.device(device)
 
@@ -45,7 +45,7 @@ def test_gnn_conv_equivariance(bs: int = 2, device='cpu', h: int = 10, w: int = 
     coords = torch.stack(torch.meshgrid([i, j]), dim=-1).float().view(-1, 2).unsqueeze(0).repeat(bs, 1, 1)
     coords[1, :, 0] += 1  # shift x by 1
 
-    values = torch.ones((bs, coords.shape[1], 1))
+    values = torch.randn((bs, coords.shape[1], 1))
 
     mask = torch.ones(bs, values.shape[1], device=device) > 0
 
