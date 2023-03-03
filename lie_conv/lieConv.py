@@ -19,6 +19,7 @@ such as for computing a swish nonlinearity on values.
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import torch_geometric
 import numpy as np
 from lie_conv.utils import Expression, export, Named, Pass
 from lie_conv.utils import FarthestSubsample, knn_point, index_points
@@ -377,6 +378,48 @@ class LieConvGCN(LieConv):
         convolved_wzeros = torch.where(sub_mask.unsqueeze(-1), convolved_vals, torch.zeros_like(convolved_vals))
         return sub_abq, convolved_wzeros, sub_mask
 
+class LieConvGAT(LieConv):
+    def __init__(self, 
+                 *args, 
+                 hidden_dim: int = None, 
+                 n_layers: int = 3, 
+                 use_dist = True, 
+                 **kwargs
+        ):
+        """
+        hidden_dim: int, size of hidden dim of the outside MLP
+        n_layers: number of layers
+        use_dist: bool. Alternate between the MLP that operates
+                    on ||log(ab|| or log(ab)
+        """
+        super().__init__(*args, **kwargs)
+        self.use_dist = use_dist
+        if self.use_dist:
+            self.edge_weights_dim = 1
+        else:
+            # use Lie Algebra elems
+            self.edge_weights_dim = self.group.lie_dim + 2 # +2 for the orbit
+
+        if hidden_dim is None:
+            hidden_dim = self.chout
+        if n_layers == 1:
+            self.layers = [
+                    nn.Linear(
+                        self.chin,
+                        self.chout
+                    )
+            ]
+        else:
+            self.layers = [nn.Linear(self.chin, hidden_dim)] + \
+                          [nn.Linear(hidden_dim, hidden_dim) for _ in range(n_layers - 2)] + \
+                          [nn.Linear(hidden_dim, self.chout)]
+        self.layers = nn.ModuleList(self.layers)
+
+    def point_convolve(self, abq, vals, mask):
+        pass
+
+    def forward(self, inp):
+        pass
 
 @export
 def pConvBNrelu(in_channels, out_channels, bn=True, act='swish', **kwargs):
@@ -529,3 +572,126 @@ class ImgGCNLieResnet(ImgLieResnet):
         super().__init__(*args,
                          conv_layer=lambda *args, **kwargs: LieConvGCN(*args, n_layers=gnn_recep_field, **kwargs),
                          **kwargs)
+
+@export
+class LieGNN(nn.Module, metaclass=Named):
+    """
+        Generic GNN that performs convolution on the Lie Algebra elements
+        Arguments (similar to LieGNN):
+        [chin] number of input channels: 1 for MNIST
+        [num_layers] number of GNN layers to use
+        [k] width of channels 
+        [liftsamples] number of samples to use in lifting.
+                      1 for groups with trivial stabiliser
+        [group] group to be equivariant to
+ 
+        Not used: [Fill], [nbhd], [ds_frac], [bn]
+    """
+    def __init__(self, chin, num_outputs=1, k=1536, 
+                 bn=True, num_layers=6, mean=True, 
+                 per_point=True, pool=True, liftsamples=1, 
+                group=SE3, gnn_layer=LieGNNSimpleConv, **kwargs):
+        super().__init__()
+        conv = lambda ki, ko, fill: conv_layer(ki, ko, *kwargs)
+
+        self.net = nn.Sequential(
+            Pass(nn.Linear(chin, k), dim=1),  # embedding layer
+            *[conv(ki, ko) for i in range(num_layers)],
+            torch_geometric.nn.global_mean_pool 
+            Pass(nn.Linear(k, num_outputs), dim=1),
+        )
+
+        self.liftsamples = liftsamples
+        self.group = group
+    def build_graph(self, x, lifted_x):
+        """
+            Build a Graph to be used in this GNN
+            use the lifted samples, with the distance
+            as edge features and given values as node features
+
+            Initially: Build a fully connected graph
+            Later on: Use a neighbourhood
+        """
+        (_, vals, mask)
+        # (bs, n, d) -> (bs, n, n, d)
+        distances = self.group.distance(lifted_abq)
+
+        # only have edges between nodes where mask is true for both
+        batch = []
+        for batch_idx, curr_mask in enumerate(mask):
+            # Returns list of nodes that are non-zero, i.e not masked
+            nodes = torch.nonzero(curr_mask, as_tuple=True)
+            # Get all possible combinations of nodes: [combs_cnt, 2]
+            edge_pairs = torch.combinations(nodes)
+            # Reflect each edge (as we need them in both directions)
+            edge_pairs = torch.concat(
+                    [edge_pairs, deepcopy(edge_pairs)[[1, 0]], axis=0)
+            # Use the pairs to extract distances
+            edge_attr = torch.tensor([distances[src, dst] 
+                                      for src, dst in edge_pairs])[:, None]
+            graph = torch_geometric.data.Data(
+                x=vals[batch_idx], 
+                edge_index=edge_pairs.transpose(),
+                edge_attr=edge_attr)
+            batch.append(graph)
+
+        # Create data loader with that batch:
+        loader = torch_geometric.loader.DataLoader(
+            graph,
+            batch_size=len(batch))
+
+        return next(loader)
+
+    def forward(self, x):
+        # result: (pair_abq(), function values, mask)
+        # between all lifted samples
+        # already returned as lie algebra arguments (log(u))
+        # pairs_abq: (bs, n, n)
+        # vals: (bs, n, cin)
+        lifted_x = self.group.lift(x, self.liftsamples)
+        
+        # Now build the fully connected graph between all pixels
+        graph = self.build_graph(x, lifted_x)
+        return self.net(lifted_x)
+@export
+class ImgLieGNN(LieResNet):
+    """
+    LieGNN architecture applied to images
+    """
+    def __init__(self, chin=1, num_layers=6, group=T(2), 
+                 num_targets=10, **kwargs):
+        super().__init__(chin=chin, num_layers=num_layers, 
+                         group=group, k=k, num_outputs=num_targets,
+                         **kwargs)
+        self.lifted_coords = None
+
+    def forward(self, x, coord_transform=None):
+        """ assumes x is a regular image: (bs,c,h,w)"""
+        bs, c, h, w = x.shape
+
+        # Construct coordinate grid
+        i = torch.linspace(-h / 2., h / 2., h)
+        j = torch.linspace(-w / 2., w / 2., w)
+        coords = torch.stack(torch.meshgrid([i, j]), dim=-1).float()
+        
+        # Perform center crop
+        center_mask = coords.norm(dim=-1) < 15.  # crop out corners (filled only with zeros)
+        coords = coords[center_mask].view(-1, 2).unsqueeze(0).repeat(bs, 1, 1).to(x.device)
+        if coord_transform is not None: coords = coord_transform(coords)
+        values = x.permute(0, 2, 3, 1)[:, center_mask, :].reshape(bs, -1, c)
+        mask = torch.ones(bs, values.shape[1], device=x.device) > 0  # all true
+
+        # new object to operate on:
+        z = (coords, values, mask)
+
+        # Perform lifting of the coordinates and cache results
+        with torch.no_grad():
+            if self.lifted_coords is None:
+                self.lifted_coords, lifted_vals, lifted_mask = \
+                        self.group.lift(z, self.liftsamples)
+            else:
+                lifted_vals, lifted_mask = \
+                        self.group.expand_like(values, mask, 
+                                               self.lifted_coords)
+        
+        return self.net((self.lifted_coords, lifted_vals, lifted_mask))
