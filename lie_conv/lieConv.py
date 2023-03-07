@@ -666,10 +666,8 @@ class LieGNN(nn.Module, metaclass=Named):
             graph.x = layer(x=graph.x, 
                             edge_index=graph.edge_index,
                             edge_attr=graph.edge_attr)
-        print(graph.x.shape, lifted_x[0].shape)
         res = self.final_layer(
                 torch_geometric.nn.global_mean_pool(graph.x, graph.batch))
-        print(res.shape) 
         return res
 
 @export
