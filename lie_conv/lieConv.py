@@ -21,6 +21,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch_geometric
 import numpy as np
+import time
 
 from copy import deepcopy
 
@@ -623,20 +624,20 @@ class LieGNN(nn.Module, metaclass=Named):
         # only have edges between nodes where mask is true for both
         batch = []
         for batch_idx, curr_mask in enumerate(mask):
+            start = time.time()
             # Returns list of nodes that are non-zero, i.e not masked
             nodes = torch.nonzero(curr_mask)[:, 0]
             # Get all possible combinations of nodes: [combs_cnt, 2]
             edge_pairs = torch.combinations(nodes)
             # Reflect each edge (as we need them in both directions)
             edge_pairs = torch.concat(
-                    [edge_pairs, deepcopy(edge_pairs)[[1, 0]]], dim=0)
+                    [edge_pairs, deepcopy(edge_pairs)[[1, 0]]], dim=0) \
+                    .transpose(0, 1)
             # Use the pairs to extract distances
-            edge_attr = torch.tensor([distances[batch_idx][src, dst] 
-                                      for src, dst in edge_pairs], 
-                                      device=vals.device)[:, None]
+            edge_attr = distances[batch_idx][edge_pairs[0], edge_pairs[1]]
             graph = torch_geometric.data.Data(
                 x=vals[batch_idx], 
-                edge_index=edge_pairs.transpose(0, 1),
+                edge_index=edge_pairs,
                 edge_attr=edge_attr)
             batch.append(graph)
 
