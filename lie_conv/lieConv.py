@@ -21,11 +21,14 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch_geometric
 import numpy as np
+
+from copy import deepcopy
+
 from lie_conv.utils import Expression, export, Named, Pass
 from lie_conv.utils import FarthestSubsample, knn_point, index_points
 from lie_conv.lieGroups import T, SO2, SO3, SE2, SE3, norm, LieGroup
 from lie_conv.masked_batchnorm import MaskBatchNormNd
-
+from lie_conv.graphConv import LieGNNSimpleConv
 
 @export
 def Swish():
@@ -592,17 +595,17 @@ class LieGNN(nn.Module, metaclass=Named):
                  per_point=True, pool=True, liftsamples=1, 
                 group=SE3, gnn_layer=LieGNNSimpleConv, **kwargs):
         super().__init__()
-        conv = lambda ki, ko, fill: conv_layer(ki, ko, *kwargs)
 
-        self.net = nn.Sequential(
-            Pass(nn.Linear(chin, k), dim=1),  # embedding layer
-            *[conv(ki, ko) for i in range(num_layers)],
-            torch_geometric.nn.global_mean_pool 
-            Pass(nn.Linear(k, num_outputs), dim=1),
-        )
+        # Layers in the network:
+        conv = lambda ki, ko: gnn_layer(ki, ko, **kwargs)
+        self.emb_layer = nn.Linear(chin, k)
+        self.net = [conv(k, k) for i in range(num_layers)]
+        self.final_layer = nn.Linear(k, num_outputs)
 
         self.liftsamples = liftsamples
+
         self.group = group
+
     def build_graph(self, x, lifted_x):
         """
             Build a Graph to be used in this GNN
@@ -612,35 +615,38 @@ class LieGNN(nn.Module, metaclass=Named):
             Initially: Build a fully connected graph
             Later on: Use a neighbourhood
         """
-        (_, vals, mask)
+        (_, vals, mask) = x
         # (bs, n, d) -> (bs, n, n, d)
-        distances = self.group.distance(lifted_abq)
+        distances = [self.group.distance(batch_x) 
+                     for batch_x in lifted_x] 
 
         # only have edges between nodes where mask is true for both
         batch = []
         for batch_idx, curr_mask in enumerate(mask):
             # Returns list of nodes that are non-zero, i.e not masked
-            nodes = torch.nonzero(curr_mask, as_tuple=True)
+            nodes = torch.nonzero(curr_mask)[:, 0]
             # Get all possible combinations of nodes: [combs_cnt, 2]
             edge_pairs = torch.combinations(nodes)
             # Reflect each edge (as we need them in both directions)
             edge_pairs = torch.concat(
-                    [edge_pairs, deepcopy(edge_pairs)[[1, 0]], axis=0)
+                    [edge_pairs, deepcopy(edge_pairs)[[1, 0]]], dim=0)
             # Use the pairs to extract distances
-            edge_attr = torch.tensor([distances[src, dst] 
+            edge_attr = torch.tensor([distances[batch_idx][src, dst] 
                                       for src, dst in edge_pairs])[:, None]
             graph = torch_geometric.data.Data(
                 x=vals[batch_idx], 
-                edge_index=edge_pairs.transpose(),
+                edge_index=edge_pairs.transpose(0, 1),
                 edge_attr=edge_attr)
             batch.append(graph)
 
         # Create data loader with that batch:
         loader = torch_geometric.loader.DataLoader(
-            graph,
-            batch_size=len(batch))
-
-        return next(loader)
+            batch,
+            batch_size=len(batch),
+            shuffle=False)
+        
+        assert len(loader) == 1 
+        return next(iter(loader))
 
     def forward(self, x):
         # result: (pair_abq(), function values, mask)
@@ -651,15 +657,27 @@ class LieGNN(nn.Module, metaclass=Named):
         lifted_x = self.group.lift(x, self.liftsamples)
         
         # Now build the fully connected graph between all pixels
-        graph = self.build_graph(x, lifted_x)
-        return self.net(lifted_x)
+        graph = self.build_graph(x, lifted_x[0]) 
+        
+        graph.x = self.emb_layer(graph.x)
+        # Apply the network:
+        for layer in self.net:
+            graph.x = layer(x=graph.x, 
+                            edge_index=graph.edge_index,
+                            edge_attr=graph.edge_attr)
+        print(graph.x.shape, lifted_x[0].shape)
+        res = self.final_layer(
+                torch_geometric.nn.global_mean_pool(graph.x, graph.batch))
+        print(res.shape) 
+        return res
+
 @export
-class ImgLieGNN(LieResNet):
+class ImgLieGNN(LieGNN):
     """
     LieGNN architecture applied to images
     """
     def __init__(self, chin=1, num_layers=6, group=T(2), 
-                 num_targets=10, **kwargs):
+                 num_targets=10, k=256, **kwargs):
         super().__init__(chin=chin, num_layers=num_layers, 
                          group=group, k=k, num_outputs=num_targets,
                          **kwargs)
@@ -675,23 +693,21 @@ class ImgLieGNN(LieResNet):
         coords = torch.stack(torch.meshgrid([i, j]), dim=-1).float()
         
         # Perform center crop
-        center_mask = coords.norm(dim=-1) < 15.  # crop out corners (filled only with zeros)
-        coords = coords[center_mask].view(-1, 2).unsqueeze(0).repeat(bs, 1, 1).to(x.device)
-        if coord_transform is not None: coords = coord_transform(coords)
-        values = x.permute(0, 2, 3, 1)[:, center_mask, :].reshape(bs, -1, c)
-        mask = torch.ones(bs, values.shape[1], device=x.device) > 0  # all true
-
+        # crop out corners (filled only with zeros)
+        center_mask = coords.norm(dim=-1) < 15.
+        coords = coords[center_mask] \
+                .view(-1, 2).unsqueeze(0).repeat(bs, 1, 1).to(x.device)
+        if coord_transform is not None:
+            coords = coord_transform(coords)
+        values = x.permute(0, 2, 3, 1)[:, center_mask, :] \
+                .reshape(bs, -1, c)
+        
+        # all true
+        mask = torch.ones(bs, values.shape[1], device=x.device) > 0  
+        
         # new object to operate on:
         z = (coords, values, mask)
-
-        # Perform lifting of the coordinates and cache results
-        with torch.no_grad():
-            if self.lifted_coords is None:
-                self.lifted_coords, lifted_vals, lifted_mask = \
-                        self.group.lift(z, self.liftsamples)
-            else:
-                lifted_vals, lifted_mask = \
-                        self.group.expand_like(values, mask, 
-                                               self.lifted_coords)
         
-        return self.net((self.lifted_coords, lifted_vals, lifted_mask))
+        # Call the parent class that holds the actual GNN
+        return super().forward(z)
+
