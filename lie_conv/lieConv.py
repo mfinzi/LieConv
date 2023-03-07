@@ -634,7 +634,8 @@ class LieGNN(nn.Module, metaclass=Named):
                     [edge_pairs, deepcopy(edge_pairs)[[1, 0]]], dim=0) \
                     .transpose(0, 1)
             # Use the pairs to extract distances
-            edge_attr = distances[batch_idx][edge_pairs[0], edge_pairs[1]]
+            edge_attr = distances[batch_idx][edge_pairs[0], 
+                    edge_pairs[1]][:, None]
             graph = torch_geometric.data.Data(
                 x=vals[batch_idx], 
                 edge_index=edge_pairs,
