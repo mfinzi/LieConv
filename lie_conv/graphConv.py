@@ -20,6 +20,7 @@ class LieGNNSimpleConv(MessagePassing):
         super().__init__(aggr=agg)
         if hidden_dim is None:
             hidden_dim = c_out
+        
         self.mlp = nn.Sequential(
             nn.Linear(c_in, hidden_dim), 
             nn.BatchNorm1d(hidden_dim), nn.ReLU(),

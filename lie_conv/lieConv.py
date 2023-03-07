@@ -599,7 +599,7 @@ class LieGNN(nn.Module, metaclass=Named):
         # Layers in the network:
         conv = lambda ki, ko: gnn_layer(ki, ko, **kwargs)
         self.emb_layer = nn.Linear(chin, k)
-        self.net = [conv(k, k) for i in range(num_layers)]
+        self.net = nn.ModuleList([conv(k, k) for i in range(num_layers)])
         self.final_layer = nn.Linear(k, num_outputs)
 
         self.liftsamples = liftsamples
@@ -632,7 +632,8 @@ class LieGNN(nn.Module, metaclass=Named):
                     [edge_pairs, deepcopy(edge_pairs)[[1, 0]]], dim=0)
             # Use the pairs to extract distances
             edge_attr = torch.tensor([distances[batch_idx][src, dst] 
-                                      for src, dst in edge_pairs])[:, None]
+                                      for src, dst in edge_pairs], 
+                                      device=vals.device)[:, None]
             graph = torch_geometric.data.Data(
                 x=vals[batch_idx], 
                 edge_index=edge_pairs.transpose(0, 1),
