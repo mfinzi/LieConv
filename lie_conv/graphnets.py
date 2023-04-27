@@ -70,7 +70,7 @@ class GNlayer(torch.nn.Module):
         return (vp, ep, up, edge_index, batch)
 
 @export
-class OGN(torch.nn.Module,metaclass=Named):
+class OGN(torch.nn.Module):
     def __init__(self,d=2,sys_dim=2,k=64,num_layers=1):
         super().__init__()
         self.gnlayers = nn.Sequential(
@@ -180,7 +180,7 @@ class VOGN(OGN):
         return dynamics(t,z)
 
 @export
-class MolecGN(nn.Module,metaclass=Named):
+class MolecGN(nn.Module):
     def __init__(self,num_species,charge_scale,num_outputs=1,d=3,k=64,num_layers=1):
         super().__init__()
         self.gnlayers = nn.Sequential(

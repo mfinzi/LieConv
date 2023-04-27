@@ -6,7 +6,7 @@ from lie_conv.utils import export, Named
 def norm(x,dim):
     return (x**2).sum(dim=dim).sqrt()
 
-class LieGroup(object,metaclass=Named):
+class LieGroup(object):
     """ The abstract Lie Group requiring additional implementation of exp,log, and lifted_elems
         to use as a new group for LieConv. rep_dim,lie_dim,q_dim should additionally be specified."""
     rep_dim = NotImplemented # dimension on which G acts. (e.g. 2 for SO(2))
@@ -583,7 +583,7 @@ class Trivial(LieGroup):
     #     return norm(qa-qb,dim=-1)
 
 @export
-class FakeSchGroup(object,metaclass=Named):
+class FakeSchGroup(object):
     lie_dim=0
     rep_dim=3
     q_dim=1

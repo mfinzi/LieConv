@@ -65,7 +65,7 @@ def FCswish(chin,chout):
     return nn.Sequential(nn.Linear(chin,chout),Swish())
 
 @export
-class FC(nn.Module,metaclass=Named):
+class FC(nn.Module):
     def __init__(self, d=2,k=300,num_layers=4,sys_dim=2,**kwargs):
         super().__init__()
         num_particles=6
@@ -83,7 +83,7 @@ class FC(nn.Module,metaclass=Named):
         zm = torch.cat(((q - q.mean(1,keepdims=True)).reshape(z.shape[0],-1),p,sysP.reshape(z.shape[0],-1)),dim=1)
         return self.net(zm)
 
-class HNet(nn.Module,metaclass=Named): # abstract Hamiltonian network class
+class HNet(nn.Module): # abstract Hamiltonian network class
     def compute_H(self,z,sys_params):
         """ computes the hamiltonian, inputs (bs,2nd), (bs,n,c)"""
         m = sys_params[...,0] # assume the first component encodes masses

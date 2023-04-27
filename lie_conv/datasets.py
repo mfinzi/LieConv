@@ -55,7 +55,7 @@ def load_data(dir,classification = False):
 
 
 @export
-class ModelNet40(Dataset,metaclass=Named):
+class ModelNet40(Dataset):
     ignored_index = -100
     class_weights = None
     stratify=True
@@ -98,7 +98,7 @@ try:
     import torch_geometric
     warnings.filterwarnings('ignore')
     @export
-    class MNISTSuperpixels(torch_geometric.datasets.MNISTSuperpixels,metaclass=Named):
+    class MNISTSuperpixels(torch_geometric.datasets.MNISTSuperpixels):
         ignored_index = -100
         class_weights = None
         stratify=True
@@ -179,7 +179,7 @@ from torchvision.datasets.vision import VisionDataset
 # !wget -nc http://www.iro.umontreal.ca/~lisa/icml2007data/mnist_rotation_new.zip
 # # uncompress the zip file
 # !unzip -n mnist_rotation_new.zip -d mnist_rotation_new
-class MnistRotDataset(VisionDataset,metaclass=Named):
+class MnistRotDataset(VisionDataset):
     """ Official RotMNIST dataset."""
     ignored_index = -100
     class_weights = None
@@ -251,7 +251,7 @@ class MnistRotDataset(VisionDataset,metaclass=Named):
         return RandomRotateTranslate(0)# no translation
 
 
-class DynamicsDataset(Dataset, metaclass=Named):
+class DynamicsDataset(Dataset):
     num_targets = 1
 
     def __len__(self):
@@ -562,7 +562,7 @@ def QM9datasets(root_dir=default_qm9_dir):
         return (datasets, num_species, charge_scale)
 
 
-# class SchPackQM9(Dataset,metaclass=Named):
+# class SchPackQM9(Dataset):
 #     default_qm9_dir = '~/datasets/molecular/qm9/'
 #     max_atoms = 29
 #     num_species = 5

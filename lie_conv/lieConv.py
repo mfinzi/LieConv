@@ -293,7 +293,7 @@ class GlobalPool(nn.Module):
         return summed
 
 @export
-class LieResNet(nn.Module,metaclass=Named):
+class LieResNet(nn.Module):
     """ Generic LieConv architecture from Fig 5. Relevant Arguments:
         [Fill] specifies the fraction of the input which is included in local neighborhood. 
                 (can be array to specify a different value for each layer)
